@@ -1,4 +1,4 @@
-import { SIZE, PLAYER_NAMES, createGame, legalMoves, moveType, scores, applyMove } from "./game.js";
+import { SIZE, createGame, legalMoves, moveType, scores, applyMove } from "./game.js";
 import type { GameState, Move, Player } from "./game.js";
 
 function getElement<T extends HTMLElement>(selector: string, elementType: new () => T): T {
@@ -13,18 +13,21 @@ interface PieceChoice {
   id: string;
   name: string;
   symbol: string;
+  defaultName: string;
 }
 
 const pieceChoices: readonly PieceChoice[] = [
-  { id: "cow", name: "Cow", symbol: "🐮" },
-  { id: "pig", name: "Pig", symbol: "🐷" },
-  { id: "chicken", name: "Chicken", symbol: "🐔" },
-  { id: "sheep", name: "Sheep", symbol: "🐑" },
-  { id: "horse", name: "Horse", symbol: "🐴" },
-  { id: "duck", name: "Duck", symbol: "🦆" },
+  { id: "cow", name: "Cow", symbol: "🐮", defaultName: "MooMoo" },
+  { id: "pig", name: "Pig", symbol: "🐷", defaultName: "Oinkers" },
+  { id: "chicken", name: "Chicken", symbol: "🐔", defaultName: "Cluckers" },
+  { id: "sheep", name: "Sheep", symbol: "🐑", defaultName: "BaaBaa" },
+  { id: "horse", name: "Horse", symbol: "🐴", defaultName: "NeighNeigh" },
+  { id: "duck", name: "Duck", symbol: "🦆", defaultName: "Quackers" },
 ];
 const players: readonly Player[] = [1, 2];
 const playerPieces: Record<Player, PieceChoice | null> = { 1: null, 2: null };
+const playerNames: Record<Player, string> = { 1: "Player 1", 2: "Player 2" };
+const customizedNames = new Set<Player>();
 let matchStarted = false;
 let state = createGame();
 let selected: number | null = null;
@@ -40,6 +43,14 @@ const cells: HTMLButtonElement[] = [];
 const pieceInputs: { player: Player; choice: PieceChoice; input: HTMLInputElement; label: HTMLLabelElement }[] = [];
 
 for (const player of players) {
+  const nameInput = getElement(`#player-${player}-name`, HTMLInputElement);
+  nameInput.addEventListener("input", () => {
+    customizedNames.add(player);
+    playerNames[player] = nameInput.value.trim();
+    nameInput.setCustomValidity(playerNames[player].length === 0 ? "Enter a name that is not just spaces." : "");
+    updatePiecePicker();
+    render();
+  });
   const options = getElement(`#piece-options-${player}`, HTMLDivElement);
   for (const choice of pieceChoices) {
     const label = document.createElement("label");
@@ -60,7 +71,12 @@ for (const player of players) {
     pieceInputs.push({ player, choice, input, label });
     input.addEventListener("change", () => {
       playerPieces[player] = choice;
+      if (!customizedNames.has(player)) {
+        playerNames[player] = choice.defaultName;
+        nameInput.value = choice.defaultName;
+      }
       updatePiecePicker();
+      render();
     });
   }
 }
@@ -72,15 +88,18 @@ function updatePiecePicker(): void {
     input.checked = playerPieces[player]?.id === choice.id;
     label.classList.toggle("chosen", input.checked);
     label.classList.toggle("unavailable", input.disabled);
-    label.title = input.disabled ? `${PLAYER_NAMES[opponent]} has chosen ${choice.name}` : choice.name;
+    label.title = input.disabled ? `${playerNames[opponent]} has chosen ${choice.name}` : choice.name;
   }
   const fern = playerPieces[1];
   const coral = playerPieces[2];
-  startGameButton.disabled = fern === null || coral === null || fern.id === coral.id;
-  getElement("#piece-picker-status", HTMLParagraphElement).textContent = fern !== null && coral !== null
-    ? `Fern's ${fern.name} vs. Coral's ${coral.name}. Ready to grow?`
-    : fern !== null ? "Coral, choose your farm friend."
-      : coral !== null ? "Fern, choose your farm friend."
+  const missingName = players.find(player => playerNames[player].length === 0);
+  startGameButton.disabled = missingName !== undefined || fern === null || coral === null || fern.id === coral.id;
+  getElement("#piece-picker-status", HTMLParagraphElement).textContent = missingName !== undefined
+    ? `Enter a name for Player ${missingName}.`
+    : fern !== null && coral !== null
+      ? `${playerNames[1]}'s ${fern.name} vs. ${playerNames[2]}'s ${coral.name}. Ready to grow?`
+    : fern !== null ? `${playerNames[2]}, choose your farm friend.`
+      : coral !== null ? `${playerNames[1]}, choose your farm friend.`
         : "Choose one farm friend for each player.";
 }
 
@@ -90,10 +109,13 @@ getElement("#piece-form", HTMLFormElement).addEventListener("submit", event => {
     getElement("#piece-picker-status", HTMLParagraphElement).textContent = "Choose a different farm friend for each player before starting.";
     return;
   }
+  if (!getElement("#piece-form", HTMLFormElement).reportValidity()) {
+    return;
+  }
   matchStarted = true;
   pieceDialog.close();
   render();
-  announcement.textContent = `Fern's ${playerPieces[1].name} vs. Coral's ${playerPieces[2].name}. Fern goes first.`;
+  announcement.textContent = `${playerNames[1]}'s ${playerPieces[1].name} vs. ${playerNames[2]}'s ${playerPieces[2].name}. ${playerNames[1]} goes first.`;
   cells[0].focus();
 });
 pieceDialog.addEventListener("cancel", event => { event.preventDefault(); });
@@ -150,7 +172,7 @@ function selectCell(index: number): void {
   }
   if (selected === null || !legalMoves(state.board, selected).includes(index)) {
     announcement.textContent = selected === null
-      ? `Choose one of ${PLAYER_NAMES[state.turn]}'s pieces first.`
+      ? `Choose one of ${playerNames[state.turn]}'s pieces first.`
       : "That square is not available. Choose a highlighted square.";
     return;
   }
@@ -193,12 +215,15 @@ function render(animate = false): void {
     }
     cell.tabIndex = index === focused ? 0 : -1;
     cell.setAttribute("aria-pressed", String(selected === index));
-    const owner = piece ? `${PLAYER_NAMES[piece]}${playerPieces[piece] !== null ? ` (${playerPieces[piece].name})` : ""}` : "empty";
+    const owner = piece ? `${playerNames[piece]}${playerPieces[piece] !== null ? ` (${playerPieces[piece].name})` : ""}` : "empty";
     cell.setAttribute("aria-label", `${coordinate(index)}, ${owner}${destinationType ? `, ${destinationType} available` : ""}`);
   });
 
   const count = scores(state.board);
   for (const player of players) {
+    const displayName = getElement(`#player-${player}-display-name`, HTMLSpanElement);
+    displayName.textContent = playerNames[player];
+    displayName.title = playerNames[player];
     const choice = playerPieces[player];
     const avatar = getElement(`#player-${player}-avatar`, HTMLDivElement);
     if (choice !== null) {
@@ -216,31 +241,33 @@ function render(animate = false): void {
   const turnLabel = getElement("#turn-label", HTMLDivElement);
   turnLabel.classList.toggle("coral", state.over ? state.winner === 2 : state.turn === 2);
   turnLabel.replaceChildren(document.createElement("span"), document.createTextNode(
-    state.over ? state.winner === 0 ? "A perfectly matched rivalry." : `${PLAYER_NAMES[state.winner]} wins!`
-      : `${PLAYER_NAMES[state.turn]}'s turn`,
+    state.over ? state.winner === 0 ? "A perfectly matched rivalry." : `${playerNames[state.winner]} wins!`
+      : `${playerNames[state.turn]}'s turn`,
   ));
   getElement("#move-counter", HTMLElement).textContent = `MOVE ${String(state.moves + (state.over ? 0 : 1)).padStart(2, "0")}`;
   getElement("#undo", HTMLButtonElement).disabled = !history.length;
   getElement("#new-game", HTMLButtonElement).disabled = !matchStarted;
   getElement("#new-game-label", HTMLSpanElement).textContent = state.over ? "Play again" : "New game";
+  getElement("#rules-first-player", HTMLSpanElement).textContent = playerNames[1];
+  getElement("#reset-first-player", HTMLSpanElement).textContent = playerNames[1];
   getElement("#selection-hint", HTMLElement).textContent = state.over
     ? "Good game. A rematch is only a click away."
-    : selected === null ? `Pick a ${PLAYER_NAMES[state.turn]} piece to see your possibilities.`
+    : selected === null ? `Pick a ${playerNames[state.turn]} piece to see your possibilities.`
       : destinations.length ? "Filled dots clone. Outlined dots jump. Your move."
         : "This piece is blocked. Try another of your pieces.";
 }
 
 function announceMove(move: Move): void {
   const flipped = move.captured.length;
-  let message = `${PLAYER_NAMES[move.player]} ${move.type === "clone" ? "cloned" : "jumped"} from ${coordinate(move.from)} to ${coordinate(move.to)}${flipped ? ` and flipped ${flipped} ${flipped === 1 ? "piece" : "pieces"}` : ""}.`;
+  let message = `${playerNames[move.player]} ${move.type === "clone" ? "cloned" : "jumped"} from ${coordinate(move.from)} to ${coordinate(move.to)}${flipped ? ` and flipped ${flipped} ${flipped === 1 ? "piece" : "pieces"}` : ""}.`;
   if (state.over) {
     const count = scores(state.board);
-    message += ` ${state.winner === 0 ? "It's a draw!" : `${PLAYER_NAMES[state.winner]} wins!`} Fern ${count[1]}, Coral ${count[2]}.`;
+    message += ` ${state.winner === 0 ? "It's a draw!" : `${playerNames[state.winner]} wins!`} ${playerNames[1]} ${count[1]}, ${playerNames[2]} ${count[2]}.`;
   } else {
     if (state.passed !== null) {
-      message += ` ${PLAYER_NAMES[state.passed]} has no legal moves and passes.`;
+      message += ` ${playerNames[state.passed]} has no legal moves and passes.`;
     }
-    message += ` ${PLAYER_NAMES[state.turn]}'s turn.`;
+    message += ` ${playerNames[state.turn]}'s turn.`;
   }
   announcement.textContent = message;
 }
@@ -253,7 +280,7 @@ getElement("#undo", HTMLButtonElement).addEventListener("click", () => {
   state = previous;
   selected = null;
   render();
-  announcement.textContent = `Move undone. ${PLAYER_NAMES[state.turn]}'s turn.`;
+  announcement.textContent = `Move undone. ${playerNames[state.turn]}'s turn.`;
 });
 
 function resetGame(): void {
@@ -262,7 +289,7 @@ function resetGame(): void {
   selected = null;
   focused = 0;
   render();
-  announcement.textContent = "A fresh start. Fern goes first.";
+  announcement.textContent = `A fresh start. ${playerNames[1]} goes first.`;
 }
 
 getElement("#new-game", HTMLButtonElement).addEventListener("click", () => {

@@ -7,7 +7,7 @@ function position(board: Board, turn: Player = 1): GameState {
   return { ...createGame(), board, turn };
 }
 
-await test("starts with opposing corners and Fern to play", () => {
+await test("starts with opposing corners and Player 1 to play", () => {
   const state = createGame();
   assert.equal(state.board.length, 49);
   assert.deepEqual(scores(state.board), { 1: 2, 2: 2 });
@@ -106,7 +106,7 @@ await test("a full board ends the game and awards the majority", () => {
   assert.equal(next.board.includes(0), false);
 });
 
-await test("a full board can also be won by Fern", () => {
+await test("a full board can also be won by Player 1", () => {
   const board = Array<Cell>(49).fill(1);
   board[48] = 2;
   board[1] = 0;

@@ -28,14 +28,16 @@ h1 em{font-family:Georgia,serif;font-weight:400;color:#6c8153;letter-spacing:-1.
 .players-card{padding:21px 20px 18px;background:#fffef8;border:1px solid var(--line);border-radius:14px}
 .card-heading{font-size:9px;letter-spacing:1.5px;font-weight:700;display:flex;align-items:center;justify-content:space-between;gap:10px}
 .local-badge{font-size:8px;letter-spacing:.6px;background:#edf0e3;color:#778364;padding:5px 6px;border-radius:4px;white-space:nowrap}
-.player{display:flex;align-items:center;gap:11px;padding:23px 0 21px}
+.player{display:flex;align-items:center;gap:11px;padding:23px 0 21px;min-width:0}
 .player-coral{border-top:1px solid #eceee3}
 .player-avatar{width:39px;height:39px;border-radius:50%;display:grid;place-items:center;flex-shrink:0}
 .fern-piece{background:var(--fern);color:#66764a;box-shadow:inset 0 -3px 0 #0000000e}
 .coral-piece{background:var(--coral);color:#9a5444;box-shadow:inset 0 -3px 0 #00000012}
 .player-avatar span{font-size:20px}
-.player-info{flex:1}
-.player-info h2{font-size:14px;margin:0 0 4px;font-weight:650;white-space:nowrap}
+.player-info{flex:1;min-width:0}
+.player-info h2{font-size:14px;margin:0 0 4px;font-weight:650;white-space:nowrap;display:flex;align-items:center;gap:3px}
+.player-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.you-tag,.score{flex-shrink:0}
 .you-tag{font-size:8px;color:#8a9083;font-weight:500;margin-left:3px;vertical-align:middle}
 .player-info p{font-size:10px;color:#939788;margin:0}
 .player.active .player-info p{color:#71864d}
@@ -131,6 +133,13 @@ dialog .keyboard-note{font-size:10px;padding:12px;background:#e9eddf;border-radi
 .piece-pickers{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin:25px 0 16px}
 .piece-picker{border:0;padding:0;margin:0;min-width:0}
 .piece-picker legend{font-size:13px;font-weight:650;margin-bottom:13px;padding:0}
+.player-name-label{display:block;font-size:10px;color:#6e7b63;margin-bottom:6px}
+.player-name-input{width:100%;min-width:0;font:inherit;font-size:13px;border:1px solid #dce1d2;border-radius:7px;padding:10px;background:#fffef8;color:#263e32;margin-bottom:14px}
+.player-name-input:focus-visible{outline:3px solid #b4783f;outline-offset:2px}
+dialog .name-help{font-size:10px;margin:12px 0;color:#758367}
+.announcement,.board-caption,.piece-picker-status,.turn-label{overflow-wrap:anywhere}
+.turn-label{min-width:0}
+.turn-label>span,.move-counter{flex-shrink:0}
 .picker-player-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
 .piece-options{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .piece-option{display:flex;flex-direction:column;align-items:center;gap:7px;position:relative;border:1px solid #dce1d2;background:#fffef8;border-radius:10px;padding:13px 4px;font-size:10px;cursor:pointer;transition:background .15s,border-color .15s}

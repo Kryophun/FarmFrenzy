@@ -17,15 +17,15 @@ For static hosting, run `npm run build` and publish only `dist/index.html`, `dis
 
 ## Play
 
-Before the first match, Fern and Coral each choose a farm friend from Cow, Pig, Chicken, Sheep, Horse, and Duck. Players must choose different pieces. Choices stay the same for rematches and new games until the page is refreshed or closed; they are not saved across visits.
+Before the first match, each player chooses a farm friend from Cow, Pig, Chicken, Sheep, Horse, and Duck. Players must choose different pieces. Each animal suggests a name (for example, Sheep becomes BaaBaa). The name follows animal changes until the player edits it; after any manual edit, later animal changes never overwrite it, even if the name is changed back to a suggested default. Names are required, limited to 24 characters, and cannot be only spaces.
 
-Fern starts. Select one of your pieces, then a highlighted empty square:
+Pieces and names stay the same for rematches and new games until the page is refreshed or closed; they are not saved across visits. Player 1 starts. Select one of your pieces, then a highlighted empty square:
 
 - **Clone:** move one square in any direction, leaving the original piece in place.
 - **Jump:** move exactly two squares away (including diagonals and off-axis destinations), emptying the original square.
 - **Flip:** every opposing piece immediately adjacent to the destination becomes yours. Flips do not chain.
 
-Blocked players pass automatically. The game ends when the board fills, a player loses all pieces, or neither player has a legal move. The player with more pieces wins; equal scores are a draw. There is no repetition limit. Undo restores the previous turn, including after a game ends. New game asks for confirmation during an active match; after a match ends, it becomes Play again. Both actions keep the chosen pieces.
+Blocked players pass automatically. The game ends when the board fills, a player loses all pieces, or neither player has a legal move. The player with more pieces wins; equal scores are a draw. There is no repetition limit. Undo restores the previous turn, including after a game ends. New game asks for confirmation during an active match; after a match ends, it becomes Play again. Both actions keep the chosen pieces and names.
 
 Use a mouse or touchscreen, or Tab into the board and navigate with arrow keys. Enter/Space selects a piece or destination; Escape clears the selection. Home/End moves to the first/last square of the row.
 

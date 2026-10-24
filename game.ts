@@ -25,8 +25,6 @@ export type GameState = GamePosition & (
   | { over: true; winner: 0 | Player }
 );
 
-export const PLAYER_NAMES: Record<Player, string> = { 1: "Fern", 2: "Coral" };
-
 export function createGame(): GameState {
   const board = Array<Cell>(SIZE * SIZE).fill(0);
   board[0] = board[48] = 1;
