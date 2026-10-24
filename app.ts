@@ -1,5 +1,7 @@
 import { SIZE, createGame, legalMoves, moveType, scores, applyMove } from "./game.js";
 import type { GameState, Move, Player } from "./game.js";
+import { PLAYER_TYPE_LABELS } from "./ai.js";
+import type { AiCandidate, AiMove, AiProgress, AiRequest, AiResponse, PlayerType } from "./ai.js";
 
 function getElement<T extends HTMLElement>(selector: string, elementType: new () => T): T {
   const element = document.querySelector(selector);
@@ -28,6 +30,13 @@ const players: readonly Player[] = [1, 2];
 const playerPieces: Record<Player, PieceChoice | null> = { 1: null, 2: null };
 const playerNames: Record<Player, string> = { 1: "Player 1", 2: "Player 2" };
 const customizedNames = new Set<Player>();
+const playerTypes: Record<Player, PlayerType> = { 1: "human", 2: "human" };
+let aiPaused = false;
+let aiError: string | null = null;
+let aiTimer: number | null = null;
+let aiWorker: Worker | null = null;
+let thinkingPlayer: Player | null = null;
+let latestAiProgress: AiProgress | null = null;
 let matchStarted = false;
 let state = createGame();
 let selected: number | null = null;
@@ -43,6 +52,15 @@ const cells: HTMLButtonElement[] = [];
 const pieceInputs: { player: Player; choice: PieceChoice; input: HTMLInputElement; label: HTMLLabelElement }[] = [];
 
 for (const player of players) {
+  const typeInput = getElement(`#player-${player}-type`, HTMLSelectElement);
+  typeInput.addEventListener("change", () => {
+    const value = typeInput.value;
+    if (value !== "human" && value !== "easy" && value !== "medium" && value !== "hard") {
+      throw new Error("Unknown player type.");
+    }
+    playerTypes[player] = value;
+    render();
+  });
   const nameInput = getElement(`#player-${player}-name`, HTMLInputElement);
   nameInput.addEventListener("input", () => {
     customizedNames.add(player);
@@ -117,6 +135,7 @@ getElement("#piece-form", HTMLFormElement).addEventListener("submit", event => {
   render();
   announcement.textContent = `${playerNames[1]}'s ${playerPieces[1].name} vs. ${playerNames[2]}'s ${playerPieces[2].name}. ${playerNames[1]} goes first.`;
   cells[0].focus();
+  scheduleAi();
 });
 pieceDialog.addEventListener("cancel", event => { event.preventDefault(); });
 
@@ -159,7 +178,7 @@ for (let index = 0; index < SIZE * SIZE; index++) {
 }
 
 function selectCell(index: number): void {
-  if (!matchStarted || state.over) {
+  if (!matchStarted || state.over || playerTypes[state.turn] !== "human") {
     return;
   }
   if (state.board[index] === state.turn) {
@@ -176,12 +195,163 @@ function selectCell(index: number): void {
       : "That square is not available. Choose a highlighted square.";
     return;
   }
+  playMove(selected, index);
+}
+
+function playMove(from: number, to: number): void {
+  const nextState = applyMove(state, from, to);
   history.push(state);
-  const nextState = applyMove(state, selected, index);
   state = nextState;
   selected = null;
   render(true);
   announceMove(nextState.lastMove);
+  scheduleAi();
+}
+
+function cancelAi(): void {
+  if (aiTimer !== null) {
+    window.clearTimeout(aiTimer);
+    aiTimer = null;
+  }
+  aiWorker?.terminate();
+  aiWorker = null;
+  board.setAttribute("aria-busy", "false");
+  renderAiThinking();
+}
+
+function showAiError(message: string): void {
+  cancelAi();
+  aiPaused = true;
+  aiError = message;
+  console.error("AI turn stopped:", message);
+  render();
+  announcement.textContent = `${playerNames[state.turn]}'s AI stopped: ${message} Retry AI, undo, or start a new game.`;
+}
+
+function scheduleAi(): void {
+  cancelAi();
+  const difficulty = playerTypes[state.turn];
+  if (!matchStarted || state.over || difficulty === "human" || aiPaused || aiError !== null
+    || pieceDialog.open || rulesDialog.open || resetDialog.open) {
+    return;
+  }
+  board.setAttribute("aria-busy", "true");
+  thinkingPlayer = state.turn;
+  latestAiProgress = null;
+  aiTimer = window.setTimeout(() => {
+    aiTimer = null;
+    try {
+      const worker = new Worker(new URL("./ai-worker.js", import.meta.url), { type: "module" });
+      aiWorker = worker;
+      worker.onmessage = (event: MessageEvent<AiResponse>): void => {
+        if (aiWorker !== worker) {
+          return;
+        }
+        const response = event.data;
+        if (response.type === "progress") {
+          latestAiProgress = response.progress;
+          renderAiThinking();
+          return;
+        }
+        cancelAi();
+        if (response.type === "error") {
+          showAiError(response.message);
+          return;
+        }
+        if (response.move === null) {
+          showAiError("No legal move was returned for this turn.");
+          return;
+        }
+        try {
+          playMove(response.move.from, response.move.to);
+        } catch (error) {
+          showAiError(error instanceof Error ? error.message : "The AI returned an invalid move.");
+        }
+      };
+      worker.onerror = (event): void => {
+        event.preventDefault();
+        if (aiWorker === worker) {
+          showAiError(event.message || "The AI worker could not be loaded.");
+        }
+      };
+      worker.onmessageerror = (): void => {
+        if (aiWorker === worker) {
+          showAiError("The AI response could not be read.");
+        }
+      };
+      const request: AiRequest = { state, difficulty };
+      worker.postMessage(request);
+    } catch (error) {
+      showAiError(error instanceof Error ? error.message : "The AI worker could not be started.");
+    }
+  }, 450);
+  renderAiThinking();
+}
+
+function moveLabel(move: AiMove): string {
+  return `${coordinate(move.from)} → ${coordinate(move.to)}`;
+}
+
+function sameMove(first: AiMove, second: AiMove | null): boolean {
+  return second !== null && first.from === second.from && first.to === second.to;
+}
+
+function evaluationLabel(candidate: AiCandidate): string {
+  if (candidate.score === null) {
+    return "Not scored";
+  }
+  const bound = candidate.bound === "upper" ? "≤ " : "";
+  if (candidate.score >= 99_900) {
+    return `${bound}Winning`;
+  }
+  if (candidate.score <= -99_900) {
+    return `${bound}Losing`;
+  }
+  return `${bound}${candidate.score > 0 ? "+" : ""}${(candidate.score / 100).toFixed(2)}`;
+}
+
+function renderAiThinking(): void {
+  const hasAi = players.some(player => playerTypes[player] !== "human");
+  getElement("#thinking-toggle", HTMLLabelElement).hidden = !matchStarted || !hasAi;
+  const panel = getElement("#ai-thinking", HTMLElement);
+  panel.hidden = !matchStarted || !hasAi || !getElement("#show-ai-thinking", HTMLInputElement).checked;
+  if (panel.hidden) {
+    return;
+  }
+  const progress = latestAiProgress;
+  const active = aiWorker !== null || aiTimer !== null;
+  const description = thinkingPlayer === null ? "AI analysis will appear on the next AI turn."
+    : `${playerNames[thinkingPlayer]} · ${PLAYER_TYPE_LABELS[playerTypes[thinkingPlayer]]} · ${
+      aiError !== null ? "Stopped" : progress?.phase === "complete" ? "Move selected"
+        : active ? "Thinking..." : "Analysis paused"}`;
+  getElement("#ai-thinking-summary", HTMLParagraphElement).textContent = description;
+  getElement("#ai-thinking-depth", HTMLSpanElement).textContent = progress === null ? ""
+    : progress.difficulty === "easy" ? `${progress.candidates.length} legal moves · random choice`
+      : `Depth ${progress.depth} · ${progress.candidates.filter(candidate => candidate.score !== null).length}/${progress.candidates.length} candidates evaluated · ${progress.nodes} positions visited`;
+  getElement("#ai-thinking-current", HTMLParagraphElement).textContent = progress?.considering !== null && progress?.considering !== undefined
+    ? `Considering: ${moveLabel(progress.considering)}`
+    : active && progress?.phase !== "complete" ? "Evaluating candidate moves..." : "";
+  getElement("#ai-thinking-best", HTMLParagraphElement).textContent = progress?.bestMove !== null && progress?.bestMove !== undefined
+    ? `${progress.phase === "complete" ? "Selected" : "Best so far"}: ${moveLabel(progress.bestMove)}`
+    : "No move selected yet.";
+  const rows = progress?.candidates.map(candidate => {
+    const row = document.createElement("tr");
+    const best = sameMove(candidate.move, progress.bestMove);
+    const current = sameMove(candidate.move, progress.considering);
+    row.classList.toggle("best-candidate", best);
+    row.classList.toggle("current-candidate", current);
+    const moveCell = document.createElement("td");
+    moveCell.textContent = `${moveLabel(candidate.move)} (${moveType(candidate.move.from, candidate.move.to)})`;
+    const scoreCell = document.createElement("td");
+    scoreCell.textContent = evaluationLabel(candidate);
+    const statusCell = document.createElement("td");
+    statusCell.textContent = current ? "Considering" : best
+      ? progress.phase === "complete" ? "Selected" : "Best so far"
+      : candidate.score !== null ? "Evaluated" : progress.phase === "complete" ? "Not scored" : "Pending";
+    row.append(moveCell, scoreCell, statusCell);
+    return row;
+  }) ?? [];
+  getElement("#ai-thinking-candidates", HTMLTableSectionElement).replaceChildren(...rows);
 }
 
 function render(animate = false): void {
@@ -215,6 +385,7 @@ function render(animate = false): void {
     }
     cell.tabIndex = index === focused ? 0 : -1;
     cell.setAttribute("aria-pressed", String(selected === index));
+    cell.setAttribute("aria-disabled", String(!matchStarted || state.over || playerTypes[state.turn] !== "human"));
     const owner = piece ? `${playerNames[piece]}${playerPieces[piece] !== null ? ` (${playerPieces[piece].name})` : ""}` : "empty";
     cell.setAttribute("aria-label", `${coordinate(index)}, ${owner}${destinationType ? `, ${destinationType} available` : ""}`);
   });
@@ -234,7 +405,11 @@ function render(animate = false): void {
     getElement(`#player-${player}`, HTMLElement).classList.toggle("active", !state.over && state.turn === player);
     getElement(`#player-${player}-status`, HTMLElement).textContent = state.over
       ? state.winner === 0 ? "Good game" : state.winner === player ? "The winner!" : "Well played"
-      : state.turn === player ? "Your move" : state.passed === player ? "No moves - passed" : "Up next";
+      : state.turn === player
+        ? playerTypes[player] === "human" ? "Your move"
+          : aiError !== null ? "AI stopped" : aiPaused ? "AI paused" : "Thinking..."
+        : state.passed === player ? "No moves - passed" : "Up next";
+    getElement(`#player-${player}-controller`, HTMLSpanElement).textContent = PLAYER_TYPE_LABELS[playerTypes[player]];
   }
   getElement("#fern-share", HTMLElement).style.width = `${count[1] / (count[1] + count[2]) * 100}%`;
   getElement("#coral-share", HTMLElement).style.width = `${count[2] / (count[1] + count[2]) * 100}%`;
@@ -242,19 +417,35 @@ function render(animate = false): void {
   turnLabel.classList.toggle("coral", state.over ? state.winner === 2 : state.turn === 2);
   turnLabel.replaceChildren(document.createElement("span"), document.createTextNode(
     state.over ? state.winner === 0 ? "A perfectly matched rivalry." : `${playerNames[state.winner]} wins!`
-      : `${playerNames[state.turn]}'s turn`,
+      : playerTypes[state.turn] === "human" ? `${playerNames[state.turn]}'s turn`
+        : `${playerNames[state.turn]}${aiError !== null ? "'s AI stopped" : aiPaused ? "'s AI is paused" : " is thinking..."}`,
   ));
   getElement("#move-counter", HTMLElement).textContent = `MOVE ${String(state.moves + (state.over ? 0 : 1)).padStart(2, "0")}`;
   getElement("#undo", HTMLButtonElement).disabled = !history.length;
   getElement("#new-game", HTMLButtonElement).disabled = !matchStarted;
   getElement("#new-game-label", HTMLSpanElement).textContent = state.over ? "Play again" : "New game";
+  const hasAi = players.some(player => playerTypes[player] !== "human");
+  const pauseButton = getElement("#toggle-ai", HTMLButtonElement);
+  pauseButton.hidden = !matchStarted || !hasAi || state.over || aiError !== null;
+  pauseButton.textContent = aiPaused ? "Resume AI" : "Pause AI";
+  pauseButton.setAttribute("aria-pressed", String(aiPaused));
+  getElement("#retry-ai", HTMLButtonElement).hidden = aiError === null;
+  const humanCount = players.filter(player => playerTypes[player] === "human").length;
+  getElement("#game-mode", HTMLSpanElement).textContent = humanCount === 2 ? "LOCAL 2P" : humanCount === 1 ? "VS AI" : "AI VS AI";
+  getElement("#footer-description", HTMLSpanElement).textContent = humanCount === 2
+    ? "Two humans. One board. A friendly rivalry."
+    : humanCount === 1 ? "One human. One AI. A friendly rivalry." : "Two AIs. One board. Watch them grow.";
   getElement("#rules-first-player", HTMLSpanElement).textContent = playerNames[1];
   getElement("#reset-first-player", HTMLSpanElement).textContent = playerNames[1];
   getElement("#selection-hint", HTMLElement).textContent = state.over
     ? "Good game. A rematch is only a click away."
+    : playerTypes[state.turn] !== "human"
+      ? aiError !== null ? "AI stopped. Retry, undo, or start a new game."
+        : aiPaused ? "AI is paused. Resume when you're ready." : `${PLAYER_TYPE_LABELS[playerTypes[state.turn]]} is choosing a move.`
     : selected === null ? `Pick a ${playerNames[state.turn]} piece to see your possibilities.`
       : destinations.length ? "Filled dots clone. Outlined dots jump. Your move."
         : "This piece is blocked. Try another of your pieces.";
+  renderAiThinking();
 }
 
 function announceMove(move: Move): void {
@@ -273,26 +464,48 @@ function announceMove(move: Move): void {
 }
 
 getElement("#undo", HTMLButtonElement).addEventListener("click", () => {
-  const previous = history.pop();
+  let previous = history.pop();
   if (!previous) {
     return;
   }
+  cancelAi();
+  if (players.filter(player => playerTypes[player] === "human").length === 1) {
+    while (playerTypes[previous.turn] !== "human" && history.length > 0) {
+      const earlier = history.pop();
+      if (earlier === undefined) {
+        throw new Error("Move history is inconsistent.");
+      }
+      previous = earlier;
+    }
+  }
   state = previous;
+  thinkingPlayer = null;
+  latestAiProgress = null;
   selected = null;
+  aiError = null;
+  aiPaused = playerTypes[state.turn] !== "human";
   render();
-  announcement.textContent = `Move undone. ${playerNames[state.turn]}'s turn.`;
+  announcement.textContent = `Move undone. ${playerNames[state.turn]}'s turn.${aiPaused ? " AI is paused; resume when ready." : ""}`;
+  scheduleAi();
 });
 
 function resetGame(): void {
+  cancelAi();
   state = createGame();
+  thinkingPlayer = null;
+  latestAiProgress = null;
   history.length = 0;
   selected = null;
   focused = 0;
+  aiError = null;
+  aiPaused = false;
   render();
   announcement.textContent = `A fresh start. ${playerNames[1]} goes first.`;
+  scheduleAi();
 }
 
 getElement("#new-game", HTMLButtonElement).addEventListener("click", () => {
+  cancelAi();
   if (history.length && !state.over) {
     resetDialog.showModal();
   } else {
@@ -305,9 +518,16 @@ getElement("#confirm-reset", HTMLButtonElement).addEventListener("click", () => 
   resetDialog.close();
 });
 document.querySelectorAll(".rules-trigger").forEach(button => {
-  button.addEventListener("click", () => { rulesDialog.showModal(); });
+  button.addEventListener("click", () => {
+    cancelAi();
+    rulesDialog.showModal();
+  });
 });
 for (const dialog of [rulesDialog, resetDialog]) {
+  dialog.addEventListener("close", () => {
+    render();
+    scheduleAi();
+  });
   dialog.addEventListener("click", event => {
     if (event.target !== dialog) {
       return;
@@ -318,6 +538,21 @@ for (const dialog of [rulesDialog, resetDialog]) {
     }
   });
 }
+
+getElement("#toggle-ai", HTMLButtonElement).addEventListener("click", () => {
+  aiPaused = !aiPaused;
+  render();
+  scheduleAi();
+  announcement.textContent = aiPaused ? "AI paused. Take your time." : "AI resumed.";
+});
+getElement("#retry-ai", HTMLButtonElement).addEventListener("click", () => {
+  aiError = null;
+  aiPaused = false;
+  render();
+  scheduleAi();
+  announcement.textContent = `Retrying ${playerNames[state.turn]}'s AI turn.`;
+});
+getElement("#show-ai-thinking", HTMLInputElement).addEventListener("change", renderAiThinking);
 
 render();
 updatePiecePicker();

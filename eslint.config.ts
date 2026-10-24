@@ -34,7 +34,7 @@ export default defineConfig(
     },
   },
   {
-    files: ["app.ts"],
+    files: ["app.ts", "ai-worker.ts"],
     languageOptions: { globals: globals.browser },
   },
   {

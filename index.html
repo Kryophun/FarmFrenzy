@@ -28,15 +28,15 @@
         <div class="game-layout">
           <aside class="left-rail" aria-label="Players and game information">
             <section class="players-card">
-              <div class="card-heading">THE PLAYERS <span class="local-badge">LOCAL 2P</span></div>
+              <div class="card-heading">THE PLAYERS <span class="local-badge" id="game-mode">LOCAL 2P</span></div>
               <div class="player player-fern" id="player-1">
                 <div class="player-avatar fern-piece" id="player-1-avatar" aria-hidden="true"><span>✦</span></div>
-                <div class="player-info"><h2><span class="player-name" id="player-1-display-name">Player 1</span> <span class="you-tag">P1</span></h2><p id="player-1-status">Your move</p></div>
+                <div class="player-info"><h2><span class="player-name" id="player-1-display-name">Player 1</span> <span class="you-tag">P1</span></h2><span class="player-controller" id="player-1-controller">Human</span><p id="player-1-status">Your move</p></div>
                 <strong class="score" id="score-1">2</strong>
               </div>
               <div class="player player-coral" id="player-2">
                 <div class="player-avatar coral-piece" id="player-2-avatar" aria-hidden="true"><span>✦</span></div>
-                <div class="player-info"><h2><span class="player-name" id="player-2-display-name">Player 2</span> <span class="you-tag">P2</span></h2><p id="player-2-status">Up next</p></div>
+                <div class="player-info"><h2><span class="player-name" id="player-2-display-name">Player 2</span> <span class="you-tag">P2</span></h2><span class="player-controller" id="player-2-controller">Human</span><p id="player-2-status">Up next</p></div>
                 <strong class="score" id="score-2">2</strong>
               </div>
               <div class="territory" aria-label="Share of occupied squares"><span id="fern-share"></span><span id="coral-share"></span></div>
@@ -64,9 +64,26 @@
             <div class="board-caption" id="board-help"><span class="caption-dot"></span><span id="selection-hint">Pick a piece to see your possibilities.</span></div>
             <div class="game-controls">
               <button class="secondary-button" id="undo" disabled><span aria-hidden="true">↶</span> Undo move</button>
+              <button class="secondary-button" id="toggle-ai" hidden>Pause AI</button>
+              <button class="secondary-button" id="retry-ai" hidden>Retry AI</button>
               <button class="primary-button" id="new-game"><span aria-hidden="true">↻</span> <span id="new-game-label">New game</span></button>
             </div>
+            <label class="thinking-toggle" id="thinking-toggle" hidden><input type="checkbox" id="show-ai-thinking"> Show AI thinking</label>
             <p class="announcement" id="announcement" role="status" aria-live="polite" aria-atomic="true">Choose your pieces and names to start.</p>
+            <section class="ai-thinking" id="ai-thinking" aria-labelledby="ai-thinking-title" hidden>
+              <h2 id="ai-thinking-title">AI move explorer</h2>
+              <p id="ai-thinking-summary">AI analysis will appear on the next AI turn.</p>
+              <span class="thinking-depth" id="ai-thinking-depth"></span>
+              <p class="thinking-current" id="ai-thinking-current"></p>
+              <p class="thinking-best" id="ai-thinking-best">No move selected yet.</p>
+              <div class="thinking-table-scroll" role="region" aria-label="AI candidate moves" tabindex="0">
+                <table>
+                  <thead><tr><th scope="col">Move</th><th scope="col">Score</th><th scope="col">Status</th></tr></thead>
+                  <tbody id="ai-thinking-candidates"></tbody>
+                </table>
+              </div>
+              <p class="thinking-note">Higher scores favor this AI. Scores estimate piece advantage, not win probability. “≤” is an upper bound from search pruning. Easy AI picks randomly and does not score moves.</p>
+            </section>
           </section>
 
           <aside class="right-rail">
@@ -81,7 +98,7 @@
         </div>
       </main>
 
-      <footer><span>A CLASSIC GAME. A FRESH LITTLE RIVALRY.</span><div><span class="online-dot"></span> Two humans. One board. No bots.</div><span>TAKE YOUR TIME. TAKE SOME TERRITORY.</span></footer>
+      <footer><span>A CLASSIC GAME. A FRESH LITTLE RIVALRY.</span><div><span class="online-dot"></span><span id="footer-description">Two humans. One board. A friendly rivalry.</span></div><span>TAKE YOUR TIME. TAKE SOME TERRITORY.</span></footer>
     </div>
 
     <dialog id="piece-dialog" aria-labelledby="piece-title" aria-describedby="piece-description">
@@ -92,18 +109,33 @@
         <div class="piece-pickers">
           <fieldset class="piece-picker">
             <legend><span class="picker-player-dot fern-piece"></span> Player 1</legend>
+            <label class="player-name-label" for="player-1-type">Player type</label>
+            <select class="player-type-input" id="player-1-type" name="player-type-1">
+              <option value="human">Human</option>
+              <option value="easy">Easy AI</option>
+              <option value="medium">Medium AI</option>
+              <option value="hard">Hard AI</option>
+            </select>
             <label class="player-name-label" for="player-1-name">Your name</label>
             <input class="player-name-input" id="player-1-name" name="player-name-1" type="text" value="Player 1" maxlength="24" required autocomplete="off" spellcheck="false" aria-describedby="piece-name-help">
             <div class="piece-options" id="piece-options-1"></div>
           </fieldset>
           <fieldset class="piece-picker">
             <legend><span class="picker-player-dot coral-piece"></span> Player 2</legend>
+            <label class="player-name-label" for="player-2-type">Player type</label>
+            <select class="player-type-input" id="player-2-type" name="player-type-2">
+              <option value="human">Human</option>
+              <option value="easy">Easy AI</option>
+              <option value="medium">Medium AI</option>
+              <option value="hard">Hard AI</option>
+            </select>
             <label class="player-name-label" for="player-2-name">Your name</label>
             <input class="player-name-input" id="player-2-name" name="player-name-2" type="text" value="Player 2" maxlength="24" required autocomplete="off" spellcheck="false" aria-describedby="piece-name-help">
             <div class="piece-options" id="piece-options-2"></div>
           </fieldset>
         </div>
         <p class="name-help" id="piece-name-help">We'll suggest a name for your animal. Edit it to make it yours, and it will stay yours even if you switch animals.</p>
+        <p class="name-help">Easy explores with random moves. Medium grabs territory. Hard looks ahead. Set either or both players to AI.</p>
         <p class="piece-picker-status" id="piece-picker-status" role="status" aria-live="polite">Choose one farm friend for each player.</p>
         <button class="primary-button start-game-button" id="start-game" disabled>Let's play</button>
       </form>
@@ -111,16 +143,17 @@
     <dialog id="rules-dialog" aria-labelledby="rules-title">
       <div class="dialog-eyebrow">WELCOME TO FARM FRENZY</div>
       <h2 id="rules-title">Room for two.<br>Territory for one.</h2>
-      <p>Two people play on the same device. Choose different farm friends and set your names before your first match. <span id="rules-first-player">Player 1</span> starts, then take turns selecting one of your pieces and an empty destination. Your chosen pieces and names stay the same for rematches and new games.</p>
+      <p>Play against a friend on the same device, challenge an AI, or watch two AIs play. Set each player to Human, Easy AI, Medium AI, or Hard AI, choose different farm friends, and set your names before your first match. <span id="rules-first-player">Player 1</span> starts. Your chosen pieces, names, and player types stay the same for rematches and new games.</p>
       <ol><li><strong>Clone:</strong> move one square horizontally, vertically, or diagonally. Your original stays put.</li><li><strong>Jump:</strong> move to any square exactly two spaces away. Your original square empties; you can jump over pieces.</li><li><strong>Flip:</strong> all opposing pieces touching your destination become yours, including diagonally.</li></ol>
       <p>If you have no legal move, your turn passes automatically. The game ends when the board is full, a player has no pieces, or neither player can move. Most pieces wins; equal scores are a draw.</p>
+      <p>AI moves happen automatically. Pause AI to stop and study the board. Against one AI, Undo returns to your previous decision, including any AI replies. Undoing to an AI turn pauses it until you choose Resume AI. Opening a dialog temporarily pauses AI turns.</p>
       <p class="keyboard-note">Keyboard: Tab to the board, arrow keys to explore, Enter or Space to select and move. Escape clears your selection.</p>
       <form method="dialog"><button class="primary-button">Let's play</button></form>
     </dialog>
     <dialog id="reset-dialog" aria-labelledby="reset-title">
       <div class="dialog-eyebrow">A CLEAN SLATE</div>
       <h2 id="reset-title">Another little rivalry?</h2>
-      <p>This will clear the current board and move history. Your chosen pieces and names will stay the same, and <span id="reset-first-player">Player 1</span> will go first again.</p>
+      <p>This will clear the current board and move history. Your chosen pieces, names, and player types will stay the same, and <span id="reset-first-player">Player 1</span> will go first again.</p>
       <div class="dialog-actions"><button class="secondary-button" id="cancel-reset">Keep playing</button><button class="primary-button" id="confirm-reset">Start new game</button></div>
     </dialog>
   </body>

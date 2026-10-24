@@ -3,11 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Farm Frenzy: a local, two-human-player territory game inspired by Ataxx.",
+  "description": "Farm Frenzy: a territory game for humans and three levels of AI, inspired by Ataxx.",
   "scripts": {
     "build": "tsc && node dist/build.js",
     "start": "npm run build && node dist/server.js",
-    "test": "npm run build && node --test dist/game.test.js",
+    "test": "npm run build && node --test dist/game.test.js dist/ai.test.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "npm run lint -- --fix",
