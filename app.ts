@@ -439,7 +439,7 @@ function playCaptureSound(): void {
 
 function continueGame(): void {
   cancelAi();
-  if (!matchStarted || state.over || activeMoveAnimation !== null || activeAutoFill !== null || aiPaused || aiError !== null
+  if (!matchStarted || activeMoveAnimation !== null || activeAutoFill !== null || (aiPaused && !state.over) || aiError !== null
     || pieceDialog.open || rulesDialog.open || resetDialog.open) {
     return;
   }
@@ -454,7 +454,8 @@ function continueGame(): void {
   activeAutoFill = sequence;
   selected = null;
   render();
-  announcement.textContent = `The remaining territory is settled. Finishing automatically in ${waves.length} ${waves.length === 1 ? "wave" : "waves"}.`;
+  const outcome = state.over && state.winner !== 0 ? `${playerNames[state.winner]} has won. ` : "";
+  announcement.textContent = `${outcome}The remaining territory is settled. Finishing automatically in ${waves.length} ${waves.length === 1 ? "wave" : "waves"}.`;
   sequence.timer = window.setTimeout(() => {
     sequence.timer = null;
     startAutoFillWave(sequence);
@@ -540,7 +541,7 @@ function finishAutoFillWave(sequence: AutoFillSequence): void {
   if (sequence.index === sequence.waves.length) {
     activeAutoFill = null;
     render(true);
-    if (!state.over) {
+    if (!state.over || state.board.includes(0)) {
       throw new Error("Automatic fill finished without completing the board.");
     }
     const count = scores(state.board);
@@ -768,7 +769,8 @@ function render(animate = false): void {
     getElement(`#player-${player}`, HTMLElement).classList.toggle("active", activeAutoFill !== null
       ? activeAutoFill.waves[activeAutoFill.index].some(clone => clone.player === player)
       : !state.over && state.turn === player);
-    getElement(`#player-${player}-status`, HTMLElement).textContent = activeAutoFill !== null ? "Finishing territory..."
+    getElement(`#player-${player}-status`, HTMLElement).textContent = activeAutoFill !== null
+      ? count[player] === 0 ? "No pieces left" : "Finishing territory..."
       : activeMoveAnimation !== null
       ? activeMoveAnimation.move.player === player
         ? activeMoveAnimation.phase === "tussle" ? "Tussling..."

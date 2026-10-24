@@ -9,6 +9,18 @@ export interface AutoFillClone {
 
 export type AutoFillWave = AutoFillClone[];
 
+function isFillablePosition(state: GameState): boolean {
+  if (!state.board.includes(0)) {
+    return false;
+  }
+  if (!state.over) {
+    return true;
+  }
+  const count = scores(state.board);
+  return (state.winner === 1 && count[1] > 0 && count[2] === 0)
+    || (state.winner === 2 && count[2] > 0 && count[1] === 0);
+}
+
 function reachableEmptySquares(board: Board, player: Player, clonesOnly: boolean): Set<number> {
   const traversal = [...board];
   const queue = board.flatMap((piece, index) => piece === player ? [index] : []);
@@ -28,7 +40,7 @@ function reachableEmptySquares(board: Board, player: Player, clonesOnly: boolean
 }
 
 export function getAutoFillPlan(state: GameState): AutoFillWave[] | null {
-  if (state.over || !state.board.includes(0)) {
+  if (!isFillablePosition(state)) {
     return null;
   }
   const reachable = {
@@ -76,13 +88,14 @@ export function getAutoFillPlan(state: GameState): AutoFillWave[] | null {
 }
 
 export function applyAutoFillWave(state: GameState, wave: readonly AutoFillClone[]): GameState {
-  if (state.over || wave.length === 0) {
-    throw new Error("An automatic fill wave requires an active game and at least one clone.");
+  if (!isFillablePosition(state) || wave.length === 0) {
+    throw new Error("An automatic fill wave requires a fillable game and at least one clone.");
   }
+  const playable: GameState = state.over ? { ...state, over: false, winner: null } : state;
   const board = [...state.board];
   const destinations = new Set<number>();
   for (const clone of wave) {
-    const verified = applyMove({ ...state, turn: clone.player }, clone.from, clone.to);
+    const verified = applyMove({ ...playable, turn: clone.player }, clone.from, clone.to);
     if (verified.lastMove.type !== "clone" || verified.lastMove.captured.length > 0 || destinations.has(clone.to)) {
       throw new Error("Automatic fill waves must contain distinct, non-capturing clones.");
     }
@@ -91,6 +104,9 @@ export function applyAutoFillWave(state: GameState, wave: readonly AutoFillClone
   }
   const next = { ...state, board, moves: state.moves + wave.length, passed: null, lastMove: null };
   if (board.includes(0)) {
+    if (state.over) {
+      return { ...next, over: true, winner: state.winner };
+    }
     return { ...next, over: false, winner: null };
   }
   const count = scores(board);

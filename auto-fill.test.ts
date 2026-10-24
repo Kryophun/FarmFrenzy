@@ -85,9 +85,62 @@ await test("both players can clone in the same wave", () => {
   assert.equal(next.moves, 2);
 });
 
-await test("leaves existing game-over conditions unchanged", () => {
+await test("does not fill full boards or finished positions with both sides still present", () => {
   assert.equal(getAutoFillPlan({ ...settledPosition(), over: true, winner: 1 }), null);
   assert.equal(getAutoFillPlan(position(Array<Cell>(49).fill(1))), null);
+});
+
+for (const winner of [1, 2] as const) {
+  await test(`fills an elimination win for Player ${winner} without reviving the losing side`, () => {
+    const board = Array<Cell>(49).fill(0);
+    board[0] = winner;
+    let state: GameState = { ...position(board), over: true, winner };
+    const original = structuredClone(state);
+    const plan = getAutoFillPlan(state);
+    assert.ok(plan !== null);
+    assert.deepEqual(plan.map(wave => wave.length), [3, 5, 7, 9, 11, 13]);
+    assert.deepEqual(state, original);
+    for (const wave of plan) {
+      state = applyAutoFillWave(state, wave);
+      assert.equal(state.over, true);
+      assert.equal(state.winner, winner);
+      assert.ok(state.board.every(piece => piece === 0 || piece === winner));
+    }
+    assert.equal(state.board.includes(0), false);
+    assert.equal(scores(state.board)[winner], 49);
+  });
+}
+
+await test("fills the reported 0-10 elimination position after its final jump", () => {
+  const board = Array<Cell>(49).fill(0);
+  for (const index of [6, 12, 16, 18, 24, 32, 42]) {
+    board[index] = 2;
+  }
+  for (const index of [40, 47, 48]) {
+    board[index] = 1;
+  }
+  const state = applyMove({ ...position(board), turn: 2, moves: 9 }, 32, 41);
+  assert.equal(state.over, true);
+  assert.deepEqual(scores(state.board), { 1: 0, 2: 10 });
+  const plan = getAutoFillPlan(state);
+  assert.ok(plan !== null);
+  assert.equal(plan.flat().length, 39);
+  let filled: GameState = state;
+  for (const wave of plan) {
+    filled = applyAutoFillWave(filled, wave);
+  }
+  assert.deepEqual(scores(filled.board), { 1: 0, 2: 49 });
+  assert.equal(filled.winner, 2);
+  assert.equal(filled.moves, 49);
+});
+
+await test("does not fill invalid finished positions without a surviving winner", () => {
+  const empty = Array<Cell>(49).fill(0);
+  assert.equal(getAutoFillPlan({ ...position(empty), over: true, winner: 1 }), null);
+  const board = empty.slice();
+  board[0] = 1;
+  assert.equal(getAutoFillPlan({ ...position(board), over: true, winner: 2 }), null);
+  assert.equal(getAutoFillPlan({ ...position(board), over: true, winner: 0 }), null);
 });
 
 await test("rejects captures, jumps, duplicate destinations, and within-wave chain clones", () => {
