@@ -39,6 +39,35 @@ function reachableEmptySquares(board: Board, player: Player, clonesOnly: boolean
   return reached;
 }
 
+function maximumCloneWave(board: Board, owners: readonly (Player | null)[]): AutoFillWave {
+  const matched = new Map<number, AutoFillClone>();
+  const assignDestination = (to: number, visited: Set<number>): boolean => {
+    const player = owners[to];
+    if (player === null) {
+      throw new Error("Automatic fill found an empty square without an owner.");
+    }
+    for (const [from, piece] of board.entries()) {
+      if (piece !== player || moveType(from, to) !== "clone" || visited.has(from)) {
+        continue;
+      }
+      visited.add(from);
+      const previous = matched.get(from);
+      // Reassign earlier matches when needed to fit the maximum number of legal clones.
+      if (previous === undefined || assignDestination(previous.to, visited)) {
+        matched.set(from, { from, to, player });
+        return true;
+      }
+    }
+    return false;
+  };
+  board.forEach((piece, to) => {
+    if (piece === 0) {
+      assignDestination(to, new Set());
+    }
+  });
+  return [...matched.values()].sort((a, b) => a.to - b.to);
+}
+
 export function getAutoFillPlan(state: GameState): AutoFillWave[] | null {
   if (!isFillablePosition(state)) {
     return null;
@@ -64,17 +93,7 @@ export function getAutoFillPlan(state: GameState): AutoFillWave[] | null {
   const board = [...state.board];
   const waves: AutoFillWave[] = [];
   while (board.includes(0)) {
-    const wave: AutoFillWave = [];
-    board.forEach((piece, to) => {
-      const player = owners[to];
-      if (piece !== 0 || player === null) {
-        return;
-      }
-      const from = board.findIndex((source, index) => source === player && moveType(index, to) === "clone");
-      if (from !== -1) {
-        wave.push({ from, to, player });
-      }
-    });
+    const wave = maximumCloneWave(board, owners);
     if (wave.length === 0) {
       throw new Error("Settled territory could not be filled by cloning.");
     }
@@ -93,12 +112,15 @@ export function applyAutoFillWave(state: GameState, wave: readonly AutoFillClone
   }
   const playable: GameState = state.over ? { ...state, over: false, winner: null } : state;
   const board = [...state.board];
+  const sources = new Set<number>();
   const destinations = new Set<number>();
   for (const clone of wave) {
     const verified = applyMove({ ...playable, turn: clone.player }, clone.from, clone.to);
-    if (verified.lastMove.type !== "clone" || verified.lastMove.captured.length > 0 || destinations.has(clone.to)) {
-      throw new Error("Automatic fill waves must contain distinct, non-capturing clones.");
+    if (verified.lastMove.type !== "clone" || verified.lastMove.captured.length > 0
+      || sources.has(clone.from) || destinations.has(clone.to)) {
+      throw new Error("Automatic fill waves must be non-capturing clones with distinct sources and destinations.");
     }
+    sources.add(clone.from);
     destinations.add(clone.to);
     board[clone.to] = clone.player;
   }

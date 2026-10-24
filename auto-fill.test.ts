@@ -48,6 +48,7 @@ await test("plans maximal simultaneous waves instead of cascading within a wave"
   assert.deepEqual(state, before);
   assert.deepEqual(waves.map(wave => wave.length), [7, 5, 3, 1]);
   for (const wave of waves) {
+    assert.equal(new Set(wave.map(clone => clone.from)).size, wave.length);
     const available = new Set(state.board.flatMap((piece, from) => piece === 1
       ? legalMoves(state.board, from).filter(to => moveType(from, to) === "clone") : []));
     assert.deepEqual(new Set(wave.map(clone => clone.to)), available);
@@ -85,6 +86,26 @@ await test("both players can clone in the same wave", () => {
   assert.equal(next.moves, 2);
 });
 
+await test("reassigns clone sources to fill the maximum number of legal destinations", () => {
+  const board: Board = [
+    0, 1, 0, 1, 0, 1, 0,
+    1, 1, 0, 0, 0, 0, 0,
+    1, 1, 0, 1, 1, 1, 1,
+    1, 1, 1, 1, 1, 0, 1,
+    1, 1, 0, 0, 1, 0, 1,
+    1, 0, 1, 1, 1, 0, 0,
+    1, 1, 0, 0, 0, 1, 0,
+  ];
+  const state: GameState = { ...position(board), over: true, winner: 1 };
+  const plan = getAutoFillPlan(state);
+  assert.ok(plan !== null);
+  assert.equal(plan.length, 1);
+  assert.equal(plan[0].length, 21);
+  assert.equal(new Set(plan[0].map(clone => clone.from)).size, 21);
+  assert.equal(new Set(plan[0].map(clone => clone.to)).size, 21);
+  assert.equal(applyAutoFillWave(state, plan[0]).board.includes(0), false);
+});
+
 await test("does not fill full boards or finished positions with both sides still present", () => {
   assert.equal(getAutoFillPlan({ ...settledPosition(), over: true, winner: 1 }), null);
   assert.equal(getAutoFillPlan(position(Array<Cell>(49).fill(1))), null);
@@ -98,9 +119,12 @@ for (const winner of [1, 2] as const) {
     const original = structuredClone(state);
     const plan = getAutoFillPlan(state);
     assert.ok(plan !== null);
-    assert.deepEqual(plan.map(wave => wave.length), [3, 5, 7, 9, 11, 13]);
+    assert.deepEqual(plan.slice(0, 3).map(wave => wave.length), [1, 2, 4]);
     assert.deepEqual(state, original);
     for (const wave of plan) {
+      assert.equal(new Set(wave.map(clone => clone.from)).size, wave.length);
+      assert.equal(new Set(wave.map(clone => clone.to)).size, wave.length);
+      assert.ok(wave.length <= scores(state.board)[winner]);
       state = applyAutoFillWave(state, wave);
       assert.equal(state.over, true);
       assert.equal(state.winner, winner);
@@ -143,11 +167,12 @@ await test("does not fill invalid finished positions without a surviving winner"
   assert.equal(getAutoFillPlan({ ...position(board), over: true, winner: 0 }), null);
 });
 
-await test("rejects captures, jumps, duplicate destinations, and within-wave chain clones", () => {
+await test("rejects captures, jumps, reused sources, duplicate destinations, and within-wave chain clones", () => {
   const state = settledPosition();
   for (const wave of [
     [{ from: 4, to: 2, player: 1 as const }],
     [{ from: 40, to: 32, player: 1 as const }],
+    [{ from: 4, to: 3, player: 1 as const }, { from: 4, to: 10, player: 1 as const }],
     [{ from: 4, to: 3, player: 1 as const }, { from: 11, to: 3, player: 1 as const }],
     [{ from: 4, to: 3, player: 1 as const }, { from: 3, to: 2, player: 1 as const }],
   ]) {

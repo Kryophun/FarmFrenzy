@@ -62,6 +62,7 @@ let thinkingPlayer: Player | null = null;
 let latestAiProgress: AiProgress | null = null;
 let activeMoveAnimation: AnimatedMove | null = null;
 let activeAutoFill: AutoFillSequence | null = null;
+let resultPresented = false;
 let matchStarted = false;
 let state = createGame();
 let selected: number | null = null;
@@ -445,6 +446,9 @@ function continueGame(): void {
   }
   const waves = getAutoFillPlan(state);
   if (waves === null) {
+    if (state.over) {
+      presentGameResult();
+    }
     scheduleAi();
     return;
   }
@@ -544,6 +548,7 @@ function finishAutoFillWave(sequence: AutoFillSequence): void {
     if (!state.over || state.board.includes(0)) {
       throw new Error("Automatic fill finished without completing the board.");
     }
+    presentGameResult();
     const count = scores(state.board);
     announcement.textContent = `Settled territory filled automatically. ${state.winner === 0 ? "It's a draw!" : `${playerNames[state.winner]} wins!`} ${playerNames[1]} ${count[1]}, ${playerNames[2]} ${count[2]}.`;
     return;
@@ -711,6 +716,35 @@ function renderAiThinking(): void {
   getElement("#ai-thinking-candidates", HTMLTableSectionElement).replaceChildren(...rows);
 }
 
+function renderGameResult(): void {
+  const result = getElement("#game-result", HTMLElement);
+  if (!matchStarted || !state.over || state.board.includes(0)
+    || activeMoveAnimation !== null || activeAutoFill !== null) {
+    result.hidden = true;
+    resultPresented = false;
+    return;
+  }
+  const count = scores(state.board);
+  getElement("#game-result-title", HTMLHeadingElement).textContent = state.winner === 0
+    ? "It's a draw!" : `${playerNames[state.winner]} wins!`;
+  getElement("#game-result-score", HTMLParagraphElement).textContent = `Final score: ${count[1]}–${count[2]}`;
+  getElement("#game-result-players", HTMLParagraphElement).textContent = `${playerNames[1]} vs. ${playerNames[2]}`;
+  result.classList.toggle("coral-winner", state.winner === 2);
+  result.hidden = false;
+}
+
+function presentGameResult(): void {
+  const result = getElement("#game-result", HTMLElement);
+  if (result.hidden || resultPresented) {
+    return;
+  }
+  resultPresented = true;
+  result.scrollIntoView({
+    behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+    block: "nearest",
+  });
+}
+
 function render(animate = false): void {
   const destinations = selected === null ? [] : legalMoves(state.board, selected);
   cells.forEach((cell, index) => {
@@ -817,7 +851,7 @@ function render(animate = false): void {
     : humanCount === 1 ? "One human. One AI. A friendly rivalry." : "Two AIs. One board. Watch them grow.";
   getElement("#rules-first-player", HTMLSpanElement).textContent = playerNames[1];
   getElement("#selection-hint", HTMLElement).textContent = activeAutoFill !== null
-    ? "No captures remain. Filling every safe clone square together."
+    ? "Cloning as many legal moves as possible, once per source piece."
     : activeMoveAnimation !== null
     ? activeMoveAnimation.phase === "tussle" ? "A friendly tussle in the dust." : "A little takeover in motion."
     : state.over
@@ -830,6 +864,7 @@ function render(animate = false): void {
         : "This piece is blocked. Try another of your pieces.";
   board.setAttribute("aria-busy", String(activeMoveAnimation !== null || activeAutoFill !== null || aiWorker !== null || aiTimer !== null));
   renderAiThinking();
+  renderGameResult();
 }
 
 function announceMove(move: Move): void {

@@ -57,6 +57,18 @@ h1 em{font-family:Georgia,serif;font-weight:400;color:#6c8153;letter-spacing:-1.
 .tip-decoration span{width:12px;height:12px;border:1px solid #ccd4b9;border-radius:50%}
 .tip-decoration span:nth-child(2){width:19px;height:19px;background:#e6ebd7;border:0}
 .tip-decoration span:nth-child(3){width:27px;height:27px;background:#d5dfbc;border:0}
+.game-result{position:relative;overflow:hidden;text-align:center;padding:22px 28px;margin-bottom:16px;border:1px solid #bdce92;border-radius:15px;background:linear-gradient(135deg,#e8f0d2,#fff8df);animation:result-reveal .35s ease-out}
+.game-result[hidden]{display:none}
+.game-result:before,.game-result:after{content:"✦";position:absolute;top:25px;font-size:28px;color:#baa25f;opacity:.65}
+.game-result:before{left:20px;transform:rotate(-15deg)}
+.game-result:after{right:20px;transform:rotate(15deg)}
+.result-trophy{font-size:32px;line-height:1}
+.game-result h2{font-family:Manrope,sans-serif;font-size:clamp(23px,2.5vw,33px);letter-spacing:-1px;line-height:1.25;margin:10px 0 8px;overflow-wrap:anywhere}
+.game-result .result-score{font-size:17px;font-weight:650;margin:0;color:#47603b}
+.game-result .result-players{font-size:11px;color:#7d886e;margin:8px 0 0;overflow-wrap:anywhere}
+.game-result.coral-winner{border-color:#dfb69f;background:linear-gradient(135deg,#f9e1d7,#fff7e0)}
+.game-result.coral-winner h2,.game-result.coral-winner .result-score{color:#84503d}
+@keyframes result-reveal{from{opacity:0;transform:translateY(-8px) scale(.97)}to{opacity:1;transform:translateY(0) scale(1)}}
 .board-topline{display:flex;align-items:center;justify-content:space-between;height:43px}
 .turn-label{font-size:12px;font-weight:600;display:flex;gap:8px;align-items:center}
 .turn-label span{width:8px;height:8px;border-radius:50%;background:#8ba660}
