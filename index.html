@@ -30,12 +30,12 @@
             <section class="players-card">
               <div class="card-heading">THE PLAYERS <span class="local-badge">LOCAL 2P</span></div>
               <div class="player player-fern" id="player-1">
-                <div class="player-avatar fern-piece" aria-hidden="true"><span>✦</span></div>
+                <div class="player-avatar fern-piece" id="player-1-avatar" aria-hidden="true"><span>✦</span></div>
                 <div class="player-info"><h2>Fern <span class="you-tag">P1</span></h2><p id="player-1-status">Your move</p></div>
                 <strong class="score" id="score-1">2</strong>
               </div>
               <div class="player player-coral" id="player-2">
-                <div class="player-avatar coral-piece" aria-hidden="true"><span>✦</span></div>
+                <div class="player-avatar coral-piece" id="player-2-avatar" aria-hidden="true"><span>✦</span></div>
                 <div class="player-info"><h2>Coral <span class="you-tag">P2</span></h2><p id="player-2-status">Up next</p></div>
                 <strong class="score" id="score-2">2</strong>
               </div>
@@ -64,7 +64,7 @@
             <div class="board-caption" id="board-help"><span class="caption-dot"></span><span id="selection-hint">Pick a Fern piece to see your possibilities.</span></div>
             <div class="game-controls">
               <button class="secondary-button" id="undo" disabled><span aria-hidden="true">↶</span> Undo move</button>
-              <button class="secondary-button" id="new-game"><span aria-hidden="true">↻</span> New game</button>
+              <button class="primary-button" id="new-game"><span aria-hidden="true">↻</span> <span id="new-game-label">New game</span></button>
             </div>
             <p class="announcement" id="announcement" role="status" aria-live="polite" aria-atomic="true">Fern goes first. Make yourself at home.</p>
           </section>
@@ -84,10 +84,29 @@
       <footer><span>A CLASSIC GAME. A FRESH LITTLE RIVALRY.</span><div><span class="online-dot"></span> Two humans. One board. No bots.</div><span>TAKE YOUR TIME. TAKE SOME TERRITORY.</span></footer>
     </div>
 
+    <dialog id="piece-dialog" aria-labelledby="piece-title" aria-describedby="piece-description">
+      <div class="dialog-eyebrow">MEET YOUR FARM CREW</div>
+      <h2 id="piece-title">Pick your piece.<br>Plant a little rivalry.</h2>
+      <p id="piece-description">Each player chooses a different farm friend. Your pieces stay with you for every rematch until you refresh or close this page.</p>
+      <form id="piece-form">
+        <div class="piece-pickers">
+          <fieldset class="piece-picker">
+            <legend><span class="picker-player-dot fern-piece"></span> Fern <span class="you-tag">P1</span></legend>
+            <div class="piece-options" id="piece-options-1"></div>
+          </fieldset>
+          <fieldset class="piece-picker">
+            <legend><span class="picker-player-dot coral-piece"></span> Coral <span class="you-tag">P2</span></legend>
+            <div class="piece-options" id="piece-options-2"></div>
+          </fieldset>
+        </div>
+        <p class="piece-picker-status" id="piece-picker-status" role="status" aria-live="polite">Choose one farm friend for each player.</p>
+        <button class="primary-button start-game-button" id="start-game" disabled>Let's play</button>
+      </form>
+    </dialog>
     <dialog id="rules-dialog" aria-labelledby="rules-title">
       <div class="dialog-eyebrow">WELCOME TO FARM FRENZY</div>
       <h2 id="rules-title">Room for two.<br>Territory for one.</h2>
-      <p>Two people play on the same device. Fern starts, then take turns selecting one of your pieces and an empty destination.</p>
+      <p>Two people play on the same device. Choose different farm friends before your first match. Fern starts, then take turns selecting one of your pieces and an empty destination. Your chosen pieces stay the same for rematches and new games.</p>
       <ol><li><strong>Clone:</strong> move one square horizontally, vertically, or diagonally. Your original stays put.</li><li><strong>Jump:</strong> move to any square exactly two spaces away. Your original square empties; you can jump over pieces.</li><li><strong>Flip:</strong> all opposing pieces touching your destination become yours, including diagonally.</li></ol>
       <p>If you have no legal move, your turn passes automatically. The game ends when the board is full, a player has no pieces, or neither player can move. Most pieces wins; equal scores are a draw.</p>
       <p class="keyboard-note">Keyboard: Tab to the board, arrow keys to explore, Enter or Space to select and move. Escape clears your selection.</p>
@@ -96,7 +115,7 @@
     <dialog id="reset-dialog" aria-labelledby="reset-title">
       <div class="dialog-eyebrow">A CLEAN SLATE</div>
       <h2 id="reset-title">Another little rivalry?</h2>
-      <p>This will clear the current board and move history. Fern will go first again.</p>
+      <p>This will clear the current board and move history. Your chosen pieces will stay the same, and Fern will go first again.</p>
       <div class="dialog-actions"><button class="secondary-button" id="cancel-reset">Keep playing</button><button class="primary-button" id="confirm-reset">Start new game</button></div>
     </dialog>
   </body>

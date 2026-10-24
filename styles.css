@@ -72,6 +72,9 @@ h1 em{font-family:Georgia,serif;font-weight:400;color:#6c8153;letter-spacing:-1.
 .piece{height:76%;width:76%;border-radius:50%;position:relative;z-index:1;display:grid;place-items:center;transition:transform .18s;pointer-events:none}
 .piece:before{content:"";width:32%;height:16%;border-radius:50%;background:#ffffff24;position:absolute;left:20%;top:13%;transform:rotate(-32deg)}
 .piece:after{content:"";width:13%;height:13%;background:currentColor;border-radius:50%;opacity:.18}
+.piece.has-symbol:after{display:none}
+.piece-symbol{font-size:clamp(14px,2.1vw,29px);line-height:1;position:relative;z-index:1}
+.player-avatar{font-size:24px;line-height:1}
 .cell.selected{outline:2px solid #e4eab4;outline-offset:1px;z-index:2}
 .cell.selected .piece{transform:scale(.9)}
 .cell.legal-clone{background:#72925769;border:1px solid #b6cf7870}
@@ -124,6 +127,24 @@ dialog .keyboard-note{font-size:10px;padding:12px;background:#e9eddf;border-radi
 .primary-button{background:#294b39;color:#f2f4e7;border:1px solid #294b39;border-radius:7px;padding:11px 19px;font-size:12px}
 .primary-button:hover{background:#3b5f46}
 .dialog-actions{display:flex;justify-content:flex-end;gap:10px;margin-top:24px}
+#piece-dialog{max-width:620px}
+.piece-pickers{display:grid;grid-template-columns:1fr 1fr;gap:22px;margin:25px 0 16px}
+.piece-picker{border:0;padding:0;margin:0;min-width:0}
+.piece-picker legend{font-size:13px;font-weight:650;margin-bottom:13px;padding:0}
+.picker-player-dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+.piece-options{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.piece-option{display:flex;flex-direction:column;align-items:center;gap:7px;position:relative;border:1px solid #dce1d2;background:#fffef8;border-radius:10px;padding:13px 4px;font-size:10px;cursor:pointer;transition:background .15s,border-color .15s}
+.piece-option input{position:absolute;opacity:0;width:1px;height:1px;margin:0}
+.piece-option-symbol{font-size:28px;line-height:1.2}
+.piece-option.chosen{background:#e7edce;border-color:#6f8753;box-shadow:inset 0 0 0 1px #6f8753}
+.piece-option:focus-within{outline:3px solid #b4783f;outline-offset:3px}
+.piece-option:not(.unavailable):hover{border-color:#8d9e74}
+.piece-option.unavailable{opacity:.35;cursor:not-allowed}
+dialog .piece-picker-status{font-size:11px;min-height:20px;margin:14px 0}
+.start-game-button{width:100%}
+.game-controls .primary-button{font-size:11px}
+.game-controls .primary-button>span:first-child{font-size:16px;margin-right:6px;vertical-align:-1px}
+@media(max-width:650px){.piece-symbol{font-size:clamp(13px,4.3vw,23px)}#piece-dialog{padding:25px 20px}.piece-pickers{gap:13px}.piece-options{grid-template-columns:repeat(2,1fr)}.piece-option{padding:10px 4px}.piece-option-symbol{font-size:25px}}
 @media(min-width:1500px){.page{padding:0 80px}.intro{padding-top:62px;padding-bottom:48px}.game-layout{gap:38px}footer{margin-top:55px}}
 @media(max-width:1100px){.page{padding:0 30px}.game-layout{grid-template-columns:190px minmax(300px,480px);max-width:760px;gap:25px}.right-rail{grid-column:1/-1;padding-top:0}.rules-card{display:flex;gap:25px;padding:20px;align-items:center}.rules-card>.card-heading{display:none}.rule-item{padding-top:0;flex:1}.infection-note{flex:1;margin:0;padding:0;border:0}.win-note{display:none}.header-note{margin:0;font-size:8px}.intro{padding:35px 0 25px}.players-card{padding:18px 15px}.player{gap:8px}.player-avatar{width:32px;height:32px}.score{font-size:25px}footer>span:last-child{display:none}}
 @media(max-width:650px){.page{padding:0 20px}.site-header{height:78px}.brand{font-size:24px}.header-note{display:none}.intro{padding:32px 0 23px}.eyebrow{font-size:8px;letter-spacing:1.5px}h1{font-size:30px;letter-spacing:-1.4px;margin-top:14px}.intro>p{font-size:11px}.game-layout{display:flex;flex-direction:column;gap:15px;max-width:440px}.left-rail{width:100%;padding:0}.players-card{padding:13px 16px;display:grid;grid-template-columns:1fr 1fr;column-gap:24px}.players-card>.card-heading,.territory,.territory-label,.little-tip{display:none}.player{padding:0;gap:9px}.player-coral{border:0}.player-info h2{font-size:12px}.player-info p{font-size:9px}.score{font-size:25px}.player-avatar{width:32px;height:32px}.game-center{width:100%}.board-topline{height:34px}.board-frame{padding:12px 15px 0 9px;border-radius:12px}.board{gap:4px}.cell{border-radius:5px}.board-bottom{height:29px;font-size:5px;letter-spacing:1.2px}.board-caption{margin-top:23px;font-size:9px}.announcement{margin-bottom:0}.right-rail{width:100%}.rules-card{padding:18px 16px;align-items:flex-start;gap:18px}.rule-item h2{font-size:10px}.rule-item p{font-size:9px}.rule-diagram{margin-bottom:10px}.infection-note{display:none}footer{margin-top:28px;padding:21px 0;justify-content:center}footer>span{display:none}footer>div{font-size:9px}.secondary-button{padding:9px 13px}.dialog-actions{flex-wrap:wrap}}
