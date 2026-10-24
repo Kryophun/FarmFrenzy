@@ -74,6 +74,26 @@ h1 em{font-family:Georgia,serif;font-weight:400;color:#6c8153;letter-spacing:-1.
 .cell:focus-visible{outline:2px solid #f2f1c2;outline-offset:1px;z-index:1}
 .piece{height:76%;width:76%;border-radius:50%;position:relative;z-index:1;display:grid;place-items:center;transition:transform .18s;pointer-events:none}
 .piece.move-ghost{position:absolute;z-index:5;pointer-events:none;transition:none}
+.cell.tussling>.piece{opacity:0}
+.capture-cloud{position:absolute;z-index:7;pointer-events:none;filter:drop-shadow(0 3px 2px #14271c55);line-height:1}
+.capture-cloud:before{content:"";position:absolute;inset:18% 10%;border-radius:50%;background:radial-gradient(ellipse at 40% 30%,#f4e9d4,#c9b08a)}
+.dust-puff{position:absolute;width:46%;height:46%;border-radius:50%;background:radial-gradient(circle at 35% 25%,#f9efdd,#d2ba97);box-shadow:inset 0 -2px 0 #b69a7133;animation:dust-rumble .14s ease-in-out infinite alternate}
+.dust-puff-0{left:5%;top:29%}
+.dust-puff-1{left:22%;top:6%;animation-delay:-.06s}
+.dust-puff-2{left:48%;top:18%;animation-delay:-.1s}
+.dust-puff-3{left:45%;top:47%;animation-delay:-.03s}
+.dust-puff-4{left:18%;top:51%;animation-delay:-.09s}
+.dust-puff-5{left:1%;top:47%;width:34%;height:34%;animation-delay:-.12s}
+.tussle-animal{position:absolute;z-index:1;top:28%;left:14%;animation:tussle-left .18s ease-in-out infinite alternate}
+.tussle-animal-1{left:48%;top:35%;animation-name:tussle-right;animation-delay:-.09s}
+.tussle-spark{position:absolute;z-index:2;font-size:.5em;color:#a36b31;text-shadow:0 1px #fff5dd;animation:tussle-spark .2s ease-in-out infinite alternate}
+.tussle-spark-0{left:8%;top:8%}
+.tussle-spark-1{right:1%;top:36%;animation-delay:-.07s}
+.tussle-spark-2{left:43%;bottom:0;animation-delay:-.14s}
+@keyframes dust-rumble{from{transform:translate(-2%,-3%) scale(.94)}to{transform:translate(4%,3%) scale(1.08)}}
+@keyframes tussle-left{from{transform:translate(-8%,8%) rotate(-22deg)}to{transform:translate(28%,-12%) rotate(24deg)}}
+@keyframes tussle-right{from{transform:translate(10%,-10%) rotate(25deg)}to{transform:translate(-24%,14%) rotate(-22deg)}}
+@keyframes tussle-spark{from{transform:scale(.5) rotate(-18deg);opacity:.45}to{transform:scale(1.2) rotate(18deg);opacity:1}}
 .piece:before{content:"";width:32%;height:16%;border-radius:50%;background:#ffffff24;position:absolute;left:20%;top:13%;transform:rotate(-32deg)}
 .piece:after{content:"";width:13%;height:13%;background:currentColor;border-radius:50%;opacity:.18}
 .piece.has-symbol:after{display:none}

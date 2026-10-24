@@ -19,11 +19,13 @@ interface PieceChoice {
 }
 
 interface AnimatedMove {
+  phase: "travel" | "tussle";
   move: Move;
   previousBoard: GameState["board"];
   ghost: HTMLElement;
   travel: Animation | null;
   split: Animation | null;
+  tussles: { cloud: HTMLElement; animation: Animation }[];
 }
 
 const pieceChoices: readonly PieceChoice[] = [
@@ -217,11 +219,13 @@ function playMove(from: number, to: number): void {
     throw new Error("The moving piece is missing from the board.");
   }
   const motion: AnimatedMove | null = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? null : {
+    phase: "travel",
     move: nextState.lastMove,
     previousBoard: state.board,
     ghost,
     travel: null,
     split: null,
+    tussles: [],
   };
   history.push(state);
   state = nextState;
@@ -260,10 +264,81 @@ function playMove(from: number, to: number): void {
     if (activeMoveAnimation !== motion) {
       return;
     }
-    cancelMoveAnimation();
-    scheduleAi();
+    if (motion.move.captured.length > 0 && !window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      startCaptureTussle(motion);
+    } else {
+      cancelMoveAnimation();
+      scheduleAi();
+    }
   };
   announcement.textContent = `${playerNames[motion.move.player]} is ${cloning ? "cloning" : "jumping"} from ${coordinate(from)} to ${coordinate(to)}.`;
+}
+
+function startCaptureTussle(motion: AnimatedMove): void {
+  const opponent: Player = motion.move.player === 1 ? 2 : 1;
+  const attacker = playerPieces[motion.move.player];
+  const defender = playerPieces[opponent];
+  if (attacker === null || defender === null) {
+    throw new Error("Both players need a piece for the capture animation.");
+  }
+  motion.phase = "tussle";
+  motion.travel?.cancel();
+  motion.travel = null;
+  motion.split?.cancel();
+  motion.split = null;
+  motion.ghost.remove();
+  render();
+  const area = board.getBoundingClientRect();
+  let remaining = motion.move.captured.length;
+  for (const index of motion.move.captured) {
+    const square = cells[index].getBoundingClientRect();
+    const cloud = document.createElement("span");
+    cloud.className = "capture-cloud";
+    cloud.setAttribute("aria-hidden", "true");
+    cloud.style.left = `${square.left - area.left - square.width * 0.14}px`;
+    cloud.style.top = `${square.top - area.top - square.height * 0.14}px`;
+    cloud.style.width = `${square.width * 1.28}px`;
+    cloud.style.height = `${square.height * 1.28}px`;
+    cloud.style.fontSize = `${square.width * 0.46}px`;
+    for (let puff = 0; puff < 6; puff++) {
+      const bubble = document.createElement("span");
+      bubble.className = `dust-puff dust-puff-${puff}`;
+      cloud.append(bubble);
+    }
+    for (const [side, piece] of [attacker, defender].entries()) {
+      const fighter = document.createElement("span");
+      fighter.className = `tussle-animal tussle-animal-${side}`;
+      fighter.textContent = piece.symbol;
+      cloud.append(fighter);
+    }
+    for (let spark = 0; spark < 3; spark++) {
+      const star = document.createElement("span");
+      star.className = `tussle-spark tussle-spark-${spark}`;
+      star.textContent = "✦";
+      cloud.append(star);
+    }
+    board.append(cloud);
+    const animation = cloud.animate([
+      { opacity: 0, transform: "scale(0.35) rotate(-8deg)" },
+      { opacity: 1, transform: "scale(1.08) rotate(7deg)", offset: 0.16 },
+      { opacity: 1, transform: "scale(0.98) rotate(-7deg)", offset: 0.35 },
+      { opacity: 1, transform: "scale(1.04) rotate(6deg)", offset: 0.58 },
+      { opacity: 1, transform: "scale(1) rotate(-4deg)", offset: 0.78 },
+      { opacity: 0, transform: "scale(1.2) rotate(0deg)" },
+    ], { duration: 560, easing: "linear", fill: "forwards" });
+    motion.tussles.push({ cloud, animation });
+    animation.onfinish = (): void => {
+      if (activeMoveAnimation !== motion) {
+        return;
+      }
+      remaining--;
+      if (remaining === 0) {
+        cancelMoveAnimation();
+        scheduleAi();
+      }
+    };
+  }
+  announcement.textContent = `A friendly tussle! ${playerNames[motion.move.player]} is taking over ${motion.move.captured.length} ${motion.move.captured.length === 1 ? "piece" : "pieces"}.`;
 }
 
 function cancelMoveAnimation(): void {
@@ -275,6 +350,11 @@ function cancelMoveAnimation(): void {
   motion.travel?.cancel();
   motion.split?.cancel();
   motion.ghost.remove();
+  for (const { cloud, animation } of motion.tussles) {
+    animation.onfinish = null;
+    animation.cancel();
+    cloud.remove();
+  }
   render(true);
   announceMove(motion.move);
 }
@@ -429,12 +509,14 @@ function render(animate = false): void {
   const destinations = selected === null ? [] : legalMoves(state.board, selected);
   cells.forEach((cell, index) => {
     const piece = state.board[index];
-    const visiblePiece = activeMoveAnimation?.move.to === index ? 0
+    const visiblePiece = activeMoveAnimation?.phase === "travel" && activeMoveAnimation.move.to === index ? 0
       : activeMoveAnimation?.move.captured.includes(index) === true
         ? activeMoveAnimation.previousBoard[index] : piece;
     const destinationType = selected !== null && destinations.includes(index) ? moveType(selected, index) : null;
     cell.className = "cell";
     cell.classList.toggle("selected", selected === index);
+    cell.classList.toggle("tussling", activeMoveAnimation?.phase === "tussle"
+      && activeMoveAnimation.move.captured.includes(index));
     if (destinationType) {
       cell.classList.add(`legal-${destinationType}`);
     }
@@ -480,7 +562,8 @@ function render(animate = false): void {
     getElement(`#player-${player}`, HTMLElement).classList.toggle("active", !state.over && state.turn === player);
     getElement(`#player-${player}-status`, HTMLElement).textContent = activeMoveAnimation !== null
       ? activeMoveAnimation.move.player === player
-        ? activeMoveAnimation.move.type === "clone" ? "Cloning..." : "Jumping..." : "Up next"
+        ? activeMoveAnimation.phase === "tussle" ? "Tussling..."
+          : activeMoveAnimation.move.type === "clone" ? "Cloning..." : "Jumping..." : "Up next"
       : state.over
       ? state.winner === 0 ? "Good game" : state.winner === player ? "The winner!" : "Well played"
       : state.turn === player
@@ -496,7 +579,8 @@ function render(animate = false): void {
     : state.over ? state.winner === 2 : state.turn === 2);
   turnLabel.replaceChildren(document.createElement("span"), document.createTextNode(
     activeMoveAnimation !== null
-      ? `${playerNames[activeMoveAnimation.move.player]} is ${activeMoveAnimation.move.type === "clone" ? "cloning" : "jumping"}...`
+      ? `${playerNames[activeMoveAnimation.move.player]} is ${activeMoveAnimation.phase === "tussle" ? "tussling"
+        : activeMoveAnimation.move.type === "clone" ? "cloning" : "jumping"}...`
     : state.over ? state.winner === 0 ? "A perfectly matched rivalry." : `${playerNames[state.winner]} wins!`
       : playerTypes[state.turn] === "human" ? `${playerNames[state.turn]}'s turn`
         : `${playerNames[state.turn]}${aiError !== null ? "'s AI stopped" : aiPaused ? "'s AI is paused" : " is thinking..."}`,
@@ -518,7 +602,7 @@ function render(animate = false): void {
     : humanCount === 1 ? "One human. One AI. A friendly rivalry." : "Two AIs. One board. Watch them grow.";
   getElement("#rules-first-player", HTMLSpanElement).textContent = playerNames[1];
   getElement("#selection-hint", HTMLElement).textContent = activeMoveAnimation !== null
-    ? "A little takeover in motion."
+    ? activeMoveAnimation.phase === "tussle" ? "A friendly tussle in the dust." : "A little takeover in motion."
     : state.over
     ? "Good game. A rematch is only a click away."
     : playerTypes[state.turn] !== "human"

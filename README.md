@@ -27,7 +27,7 @@ New game and Play again return to the player-choice screen. Current pieces, name
 - **Jump:** move exactly two squares away (including diagonals and off-axis destinations), emptying the original square.
 - **Flip:** every opposing piece immediately adjacent to the destination becomes yours. Flips do not chain.
 
-Jumps visibly travel in an arc from the source to the destination. Clones split off while the original piece stays behind. Captured pieces change appearance on landing, and the next turn waits for the short animation to finish. Reduced-motion preferences skip travel animations. Undo, new-game actions, pause controls, and opening the rules safely finish or cancel any active visual transition.
+Jumps visibly travel in an arc from the source to the destination. Clones split off while the original piece stays behind. After landing, each captured piece gets a brief cartoon dust-cloud tussle featuring both players' animals, then reveals its new owner. Captures and scores settle when the tussles finish, and the next turn waits for the full animation. Reduced-motion preferences skip both travel and tussle animations. Undo, new-game actions, pause controls, and opening the rules safely finish or cancel any active visual transition, including every dust cloud.
 
 Blocked players pass automatically. The game ends when the board fills, a player loses all pieces, or neither player has a legal move. The player with more pieces wins; equal scores are a draw. There is no repetition limit. New game asks for confirmation during an active match; after a match ends, it becomes Play again and opens player choice without confirmation. Pending AI work is cancelled, and no new match begins until you press Let's play on the player-choice screen.
 
