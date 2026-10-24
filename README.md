@@ -17,17 +17,19 @@ For static hosting, run `npm run build` and publish only `dist/index.html`, `dis
 
 ## Play
 
-Before the first match, each player chooses a farm friend from Cow, Pig, Chicken, Sheep, Horse, and Duck. Players must choose different pieces. Each animal suggests a name (for example, Sheep becomes BaaBaa). The name follows animal changes until the player edits it; after any manual edit, later animal changes never overwrite it, even if the name is changed back to a suggested default. Names are required, limited to 24 characters, and cannot be only spaces.
+Before each match, each player chooses a farm friend from Cow, Pig, Chicken, Sheep, Horse, and Duck. Players must choose different pieces. Each animal suggests a name (for example, Sheep becomes BaaBaa). The name follows animal changes until the player edits it; after any manual edit, later animal changes never overwrite it, even if the name is changed back to a suggested default. Names are required, limited to 24 characters, and cannot be only spaces.
 
 Set each player independently to **Human**, **Easy AI** (random legal moves), **Medium AI** (best immediate territory gain), or **Hard AI** (looks ahead using a bounded, up-to-three-ply search). Both players default to Human. AI runs entirely on your device in a Web Worker so the board and controls remain responsive.
 
-Pieces, names, and player types stay the same for rematches and new games until the page is refreshed or closed; they are not saved across visits. Player 1 starts. On human turns, select one of your pieces, then a highlighted empty square:
+New game and Play again return to the player-choice screen. Current pieces, names, and player types are prefilled so you can keep or change them before starting the next match. Refreshing or closing the page resets the choices; they are not saved across visits. Player 1 starts. On human turns, select one of your pieces, then a highlighted empty square:
 
 - **Clone:** move one square in any direction, leaving the original piece in place.
 - **Jump:** move exactly two squares away (including diagonals and off-axis destinations), emptying the original square.
 - **Flip:** every opposing piece immediately adjacent to the destination becomes yours. Flips do not chain.
 
-Blocked players pass automatically. The game ends when the board fills, a player loses all pieces, or neither player has a legal move. The player with more pieces wins; equal scores are a draw. There is no repetition limit. New game asks for confirmation during an active match; after a match ends, it becomes Play again. Both actions keep the chosen pieces, names, and player types.
+Jumps visibly travel in an arc from the source to the destination. Clones split off while the original piece stays behind. Captured pieces change appearance on landing, and the next turn waits for the short animation to finish. Reduced-motion preferences skip travel animations. Undo, new-game actions, pause controls, and opening the rules safely finish or cancel any active visual transition.
+
+Blocked players pass automatically. The game ends when the board fills, a player loses all pieces, or neither player has a legal move. The player with more pieces wins; equal scores are a draw. There is no repetition limit. New game asks for confirmation during an active match; after a match ends, it becomes Play again and opens player choice without confirmation. Pending AI work is cancelled, and no new match begins until you press Let's play on the player-choice screen.
 
 **Undo** restores one move in human-vs-human and AI-vs-AI games. Against one AI, it rewinds to the last human decision, including intervening AI moves. Undoing to an AI turn pauses AI until **Resume AI** is pressed. **Pause AI** stops pending AI work without changing the board; human turns are still playable. Opening the rules or restart dialog temporarily suspends AI and closing it resumes eligible turns. Restarting or undoing cancels any pending AI result. If AI fails to load or select a valid move, the game reports the error and offers **Retry AI** rather than silently making a fallback move.
 

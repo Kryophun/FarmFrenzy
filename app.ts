@@ -18,6 +18,14 @@ interface PieceChoice {
   defaultName: string;
 }
 
+interface AnimatedMove {
+  move: Move;
+  previousBoard: GameState["board"];
+  ghost: HTMLElement;
+  travel: Animation | null;
+  split: Animation | null;
+}
+
 const pieceChoices: readonly PieceChoice[] = [
   { id: "cow", name: "Cow", symbol: "🐮", defaultName: "MooMoo" },
   { id: "pig", name: "Pig", symbol: "🐷", defaultName: "Oinkers" },
@@ -37,6 +45,7 @@ let aiTimer: number | null = null;
 let aiWorker: Worker | null = null;
 let thinkingPlayer: Player | null = null;
 let latestAiProgress: AiProgress | null = null;
+let activeMoveAnimation: AnimatedMove | null = null;
 let matchStarted = false;
 let state = createGame();
 let selected: number | null = null;
@@ -178,7 +187,7 @@ for (let index = 0; index < SIZE * SIZE; index++) {
 }
 
 function selectCell(index: number): void {
-  if (!matchStarted || state.over || playerTypes[state.turn] !== "human") {
+  if (!matchStarted || state.over || activeMoveAnimation !== null || playerTypes[state.turn] !== "human") {
     return;
   }
   if (state.board[index] === state.turn) {
@@ -200,12 +209,74 @@ function selectCell(index: number): void {
 
 function playMove(from: number, to: number): void {
   const nextState = applyMove(state, from, to);
+  const origin = cells[from].getBoundingClientRect();
+  const destination = cells[to].getBoundingClientRect();
+  const area = board.getBoundingClientRect();
+  const ghost = cells[from].querySelector<HTMLElement>(".piece");
+  if (ghost === null) {
+    throw new Error("The moving piece is missing from the board.");
+  }
+  const motion: AnimatedMove | null = window.matchMedia("(prefers-reduced-motion: reduce)").matches ? null : {
+    move: nextState.lastMove,
+    previousBoard: state.board,
+    ghost,
+    travel: null,
+    split: null,
+  };
   history.push(state);
   state = nextState;
   selected = null;
+  activeMoveAnimation = motion;
   render(true);
-  announceMove(nextState.lastMove);
-  scheduleAi();
+  if (motion === null) {
+    announceMove(nextState.lastMove);
+    scheduleAi();
+    return;
+  }
+  const cloning = motion.move.type === "clone";
+  const duration = cloning ? 300 : 380;
+  const dx = destination.left - origin.left;
+  const dy = destination.top - origin.top;
+  const arc = Math.min(28, origin.height * (cloning ? 0.2 : 0.45));
+  ghost.classList.add("move-ghost");
+  ghost.style.left = `${origin.left - area.left + origin.width * 0.12}px`;
+  ghost.style.top = `${origin.top - area.top + origin.height * 0.12}px`;
+  ghost.style.width = `${origin.width * 0.76}px`;
+  ghost.style.height = `${origin.height * 0.76}px`;
+  board.append(ghost);
+  if (cloning) {
+    motion.split = cells[from].querySelector<HTMLElement>(".piece")?.animate([
+      { transform: "scale(1)" },
+      { transform: "scale(1.15, 0.87)", offset: 0.35 },
+      { transform: "scale(1)" },
+    ], { duration, easing: "ease-in-out" }) ?? null;
+  }
+  motion.travel = ghost.animate([
+    { transform: "translate(0, 0) scale(0.9)", opacity: cloning ? 0.65 : 1 },
+    { transform: `translate(${dx / 2}px, ${dy / 2 - arc}px) scale(1.08)`, opacity: 1, offset: 0.5 },
+    { transform: `translate(${dx}px, ${dy}px) scale(1)`, opacity: 1 },
+  ], { duration, easing: "cubic-bezier(0.25, 0.1, 0.25, 1)", fill: "forwards" });
+  motion.travel.onfinish = (): void => {
+    if (activeMoveAnimation !== motion) {
+      return;
+    }
+    cancelMoveAnimation();
+    scheduleAi();
+  };
+  announcement.textContent = `${playerNames[motion.move.player]} is ${cloning ? "cloning" : "jumping"} from ${coordinate(from)} to ${coordinate(to)}.`;
+}
+
+function cancelMoveAnimation(): void {
+  const motion = activeMoveAnimation;
+  if (motion === null) {
+    return;
+  }
+  activeMoveAnimation = null;
+  motion.travel?.cancel();
+  motion.split?.cancel();
+  motion.ghost.remove();
+  render(true);
+  announceMove(motion.move);
 }
 
 function cancelAi(): void {
@@ -215,7 +286,7 @@ function cancelAi(): void {
   }
   aiWorker?.terminate();
   aiWorker = null;
-  board.setAttribute("aria-busy", "false");
+  board.setAttribute("aria-busy", String(activeMoveAnimation !== null));
   renderAiThinking();
 }
 
@@ -231,7 +302,7 @@ function showAiError(message: string): void {
 function scheduleAi(): void {
   cancelAi();
   const difficulty = playerTypes[state.turn];
-  if (!matchStarted || state.over || difficulty === "human" || aiPaused || aiError !== null
+  if (!matchStarted || state.over || activeMoveAnimation !== null || difficulty === "human" || aiPaused || aiError !== null
     || pieceDialog.open || rulesDialog.open || resetDialog.open) {
     return;
   }
@@ -358,6 +429,9 @@ function render(animate = false): void {
   const destinations = selected === null ? [] : legalMoves(state.board, selected);
   cells.forEach((cell, index) => {
     const piece = state.board[index];
+    const visiblePiece = activeMoveAnimation?.move.to === index ? 0
+      : activeMoveAnimation?.move.captured.includes(index) === true
+        ? activeMoveAnimation.previousBoard[index] : piece;
     const destinationType = selected !== null && destinations.includes(index) ? moveType(selected, index) : null;
     cell.className = "cell";
     cell.classList.toggle("selected", selected === index);
@@ -365,15 +439,16 @@ function render(animate = false): void {
       cell.classList.add(`legal-${destinationType}`);
     }
     cell.classList.toggle("last-destination", state.lastMove?.to === index);
-    if (animate && (state.lastMove?.to === index || state.lastMove?.captured.includes(index) === true)) {
+    if (animate && activeMoveAnimation === null
+      && (state.lastMove?.to === index || state.lastMove?.captured.includes(index) === true)) {
       cell.classList.add("just-moved");
     }
     cell.replaceChildren();
-    if (piece) {
+    if (visiblePiece) {
       const token = document.createElement("span");
-      token.className = `piece ${piece === 1 ? "fern" : "coral"}-piece`;
+      token.className = `piece ${visiblePiece === 1 ? "fern" : "coral"}-piece`;
       token.setAttribute("aria-hidden", "true");
-      const choice = playerPieces[piece];
+      const choice = playerPieces[visiblePiece];
       if (choice !== null) {
         const symbol = document.createElement("span");
         symbol.className = "piece-symbol";
@@ -385,12 +460,12 @@ function render(animate = false): void {
     }
     cell.tabIndex = index === focused ? 0 : -1;
     cell.setAttribute("aria-pressed", String(selected === index));
-    cell.setAttribute("aria-disabled", String(!matchStarted || state.over || playerTypes[state.turn] !== "human"));
+    cell.setAttribute("aria-disabled", String(!matchStarted || state.over || activeMoveAnimation !== null || playerTypes[state.turn] !== "human"));
     const owner = piece ? `${playerNames[piece]}${playerPieces[piece] !== null ? ` (${playerPieces[piece].name})` : ""}` : "empty";
     cell.setAttribute("aria-label", `${coordinate(index)}, ${owner}${destinationType ? `, ${destinationType} available` : ""}`);
   });
 
-  const count = scores(state.board);
+  const count = scores(activeMoveAnimation?.previousBoard ?? state.board);
   for (const player of players) {
     const displayName = getElement(`#player-${player}-display-name`, HTMLSpanElement);
     displayName.textContent = playerNames[player];
@@ -403,7 +478,10 @@ function render(animate = false): void {
     }
     getElement(`#score-${player}`, HTMLElement).textContent = String(count[player]);
     getElement(`#player-${player}`, HTMLElement).classList.toggle("active", !state.over && state.turn === player);
-    getElement(`#player-${player}-status`, HTMLElement).textContent = state.over
+    getElement(`#player-${player}-status`, HTMLElement).textContent = activeMoveAnimation !== null
+      ? activeMoveAnimation.move.player === player
+        ? activeMoveAnimation.move.type === "clone" ? "Cloning..." : "Jumping..." : "Up next"
+      : state.over
       ? state.winner === 0 ? "Good game" : state.winner === player ? "The winner!" : "Well played"
       : state.turn === player
         ? playerTypes[player] === "human" ? "Your move"
@@ -414,9 +492,12 @@ function render(animate = false): void {
   getElement("#fern-share", HTMLElement).style.width = `${count[1] / (count[1] + count[2]) * 100}%`;
   getElement("#coral-share", HTMLElement).style.width = `${count[2] / (count[1] + count[2]) * 100}%`;
   const turnLabel = getElement("#turn-label", HTMLDivElement);
-  turnLabel.classList.toggle("coral", state.over ? state.winner === 2 : state.turn === 2);
+  turnLabel.classList.toggle("coral", activeMoveAnimation !== null ? activeMoveAnimation.move.player === 2
+    : state.over ? state.winner === 2 : state.turn === 2);
   turnLabel.replaceChildren(document.createElement("span"), document.createTextNode(
-    state.over ? state.winner === 0 ? "A perfectly matched rivalry." : `${playerNames[state.winner]} wins!`
+    activeMoveAnimation !== null
+      ? `${playerNames[activeMoveAnimation.move.player]} is ${activeMoveAnimation.move.type === "clone" ? "cloning" : "jumping"}...`
+    : state.over ? state.winner === 0 ? "A perfectly matched rivalry." : `${playerNames[state.winner]} wins!`
       : playerTypes[state.turn] === "human" ? `${playerNames[state.turn]}'s turn`
         : `${playerNames[state.turn]}${aiError !== null ? "'s AI stopped" : aiPaused ? "'s AI is paused" : " is thinking..."}`,
   ));
@@ -436,8 +517,9 @@ function render(animate = false): void {
     ? "Two humans. One board. A friendly rivalry."
     : humanCount === 1 ? "One human. One AI. A friendly rivalry." : "Two AIs. One board. Watch them grow.";
   getElement("#rules-first-player", HTMLSpanElement).textContent = playerNames[1];
-  getElement("#reset-first-player", HTMLSpanElement).textContent = playerNames[1];
-  getElement("#selection-hint", HTMLElement).textContent = state.over
+  getElement("#selection-hint", HTMLElement).textContent = activeMoveAnimation !== null
+    ? "A little takeover in motion."
+    : state.over
     ? "Good game. A rematch is only a click away."
     : playerTypes[state.turn] !== "human"
       ? aiError !== null ? "AI stopped. Retry, undo, or start a new game."
@@ -445,6 +527,7 @@ function render(animate = false): void {
     : selected === null ? `Pick a ${playerNames[state.turn]} piece to see your possibilities.`
       : destinations.length ? "Filled dots clone. Outlined dots jump. Your move."
         : "This piece is blocked. Try another of your pieces.";
+  board.setAttribute("aria-busy", String(activeMoveAnimation !== null || aiWorker !== null || aiTimer !== null));
   renderAiThinking();
 }
 
@@ -469,6 +552,7 @@ getElement("#undo", HTMLButtonElement).addEventListener("click", () => {
     return;
   }
   cancelAi();
+  cancelMoveAnimation();
   if (players.filter(player => playerTypes[player] === "human").length === 1) {
     while (playerTypes[previous.turn] !== "human" && history.length > 0) {
       const earlier = history.pop();
@@ -489,8 +573,10 @@ getElement("#undo", HTMLButtonElement).addEventListener("click", () => {
   scheduleAi();
 });
 
-function resetGame(): void {
+function openPlayerChoice(): void {
+  matchStarted = false;
   cancelAi();
+  cancelMoveAnimation();
   state = createGame();
   thinkingPlayer = null;
   latestAiProgress = null;
@@ -500,26 +586,29 @@ function resetGame(): void {
   aiError = null;
   aiPaused = false;
   render();
-  announcement.textContent = `A fresh start. ${playerNames[1]} goes first.`;
-  scheduleAi();
+  updatePiecePicker();
+  announcement.textContent = "Review your players, names, and pieces to start a new game.";
+  pieceDialog.showModal();
 }
 
 getElement("#new-game", HTMLButtonElement).addEventListener("click", () => {
   cancelAi();
+  cancelMoveAnimation();
   if (history.length && !state.over) {
     resetDialog.showModal();
   } else {
-    resetGame();
+    openPlayerChoice();
   }
 });
 getElement("#cancel-reset", HTMLButtonElement).addEventListener("click", () => { resetDialog.close(); });
 getElement("#confirm-reset", HTMLButtonElement).addEventListener("click", () => {
-  resetGame();
   resetDialog.close();
+  openPlayerChoice();
 });
 document.querySelectorAll(".rules-trigger").forEach(button => {
   button.addEventListener("click", () => {
     cancelAi();
+    cancelMoveAnimation();
     rulesDialog.showModal();
   });
 });
@@ -540,6 +629,7 @@ for (const dialog of [rulesDialog, resetDialog]) {
 }
 
 getElement("#toggle-ai", HTMLButtonElement).addEventListener("click", () => {
+  cancelMoveAnimation();
   aiPaused = !aiPaused;
   render();
   scheduleAi();
