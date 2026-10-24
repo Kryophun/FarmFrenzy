@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f7f7ef">
+    <meta name="description" content="A little rivalry. A lot of strategy. Play Farm Frenzy, a farm-fresh take on Ataxx, with a friend on the same device.">
+    <title>Farm Frenzy - A little friendly takeover</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='18' fill='%23294636'/%3E%3Ccircle cx='32' cy='32' r='20' fill='%23e7efb2'/%3E%3C/svg%3E">
+    <link rel="stylesheet" href="styles.css">
+    <script type="module" src="app.js"></script>
+  </head>
+  <body>
+    <div class="page">
+      <header class="site-header">
+        <a class="brand" href="./" aria-label="Farm Frenzy home"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>farm frenzy<span class="brand-period">.</span></a>
+        <div class="header-note">GOOD COMPANY. GREAT COMPETITION.</div>
+        <button class="text-button rules-trigger"><span aria-hidden="true">ⓘ</span> How to play</button>
+      </header>
+
+      <main>
+        <section class="intro" aria-labelledby="title">
+          <div class="eyebrow"><span></span> FARM-FRESH, SAME-SCREEN STRATEGY</div>
+          <h1 id="title">A little friendly <em>takeover.</em></h1>
+          <p>Grow your side. Flip the neighbors. Try to stay friends.</p>
+        </section>
+
+        <div class="game-layout">
+          <aside class="left-rail" aria-label="Players and game information">
+            <section class="players-card">
+              <div class="card-heading">THE PLAYERS <span class="local-badge">LOCAL 2P</span></div>
+              <div class="player player-fern" id="player-1">
+                <div class="player-avatar fern-piece" aria-hidden="true"><span>✦</span></div>
+                <div class="player-info"><h2>Fern <span class="you-tag">P1</span></h2><p id="player-1-status">Your move</p></div>
+                <strong class="score" id="score-1">2</strong>
+              </div>
+              <div class="player player-coral" id="player-2">
+                <div class="player-avatar coral-piece" aria-hidden="true"><span>✦</span></div>
+                <div class="player-info"><h2>Coral <span class="you-tag">P2</span></h2><p id="player-2-status">Up next</p></div>
+                <strong class="score" id="score-2">2</strong>
+              </div>
+              <div class="territory" aria-label="Share of occupied squares"><span id="fern-share"></span><span id="coral-share"></span></div>
+              <div class="territory-label"><span>A friendly turf war</span><span>49 squares</span></div>
+            </section>
+
+            <section class="little-tip">
+              <div class="tip-icon" aria-hidden="true">↗</div>
+              <h2>Small move.<br>Big possibilities.</h2>
+              <p>Cloning grows your numbers.<br>Jumping opens new ground.<br>A good neighbor does both.</p>
+              <div class="tip-decoration" aria-hidden="true"><span></span><span></span><span></span></div>
+            </section>
+          </aside>
+
+          <section class="game-center" aria-label="Farm Frenzy game">
+            <div class="board-topline"><div class="turn-label" id="turn-label"><span></span> Fern's turn</div><span class="move-counter" id="move-counter">MOVE 01</span></div>
+            <div class="board-frame">
+              <div class="coordinate-row" aria-hidden="true"><span>A</span><span>B</span><span>C</span><span>D</span><span>E</span><span>F</span><span>G</span></div>
+              <div class="board-with-numbers">
+                <div class="coordinate-column" aria-hidden="true"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span><span>6</span><span>7</span></div>
+                <div class="board" id="board" role="group" aria-label="7 by 7 Farm Frenzy board" aria-describedby="board-help"></div>
+              </div>
+              <div class="board-bottom"><span class="board-wordmark">FARM FRENZY</span><span aria-hidden="true">✦</span><span>GROW A LITTLE RIVALRY</span></div>
+            </div>
+            <div class="board-caption" id="board-help"><span class="caption-dot"></span><span id="selection-hint">Pick a Fern piece to see your possibilities.</span></div>
+            <div class="game-controls">
+              <button class="secondary-button" id="undo" disabled><span aria-hidden="true">↶</span> Undo move</button>
+              <button class="secondary-button" id="new-game"><span aria-hidden="true">↻</span> New game</button>
+            </div>
+            <p class="announcement" id="announcement" role="status" aria-live="polite" aria-atomic="true">Fern goes first. Make yourself at home.</p>
+          </section>
+
+          <aside class="right-rail">
+            <section class="rules-card">
+              <div class="card-heading">YOUR NEXT GREAT MOVE</div>
+              <div class="rule-item"><div class="rule-diagram clone-diagram" aria-hidden="true"><i></i><span>→</span><i></i></div><h2>One step? Make a copy.</h2><p>Move to a neighboring square to leave your original piece behind.</p><span class="rule-pill">THE CLONE</span></div>
+              <div class="rule-item"><div class="rule-diagram jump-diagram" aria-hidden="true"><i></i><span>↗</span><i></i></div><h2>Two steps? Take a leap.</h2><p>Jump two squares in any direction. Your original square becomes empty.</p><span class="rule-pill">THE JUMP</span></div>
+              <div class="infection-note"><span aria-hidden="true">✳</span><p><strong>Here's the twist.</strong> Every opponent next to your landing square flips to your color.</p></div>
+            </section>
+            <div class="win-note"><span aria-hidden="true">♧</span> Most pieces at the end wins.<br><strong>Make every move a little takeover.</strong></div>
+          </aside>
+        </div>
+      </main>
+
+      <footer><span>A CLASSIC GAME. A FRESH LITTLE RIVALRY.</span><div><span class="online-dot"></span> Two humans. One board. No bots.</div><span>TAKE YOUR TIME. TAKE SOME TERRITORY.</span></footer>
+    </div>
+
+    <dialog id="rules-dialog" aria-labelledby="rules-title">
+      <div class="dialog-eyebrow">WELCOME TO FARM FRENZY</div>
+      <h2 id="rules-title">Room for two.<br>Territory for one.</h2>
+      <p>Two people play on the same device. Fern starts, then take turns selecting one of your pieces and an empty destination.</p>
+      <ol><li><strong>Clone:</strong> move one square horizontally, vertically, or diagonally. Your original stays put.</li><li><strong>Jump:</strong> move to any square exactly two spaces away. Your original square empties; you can jump over pieces.</li><li><strong>Flip:</strong> all opposing pieces touching your destination become yours, including diagonally.</li></ol>
+      <p>If you have no legal move, your turn passes automatically. The game ends when the board is full, a player has no pieces, or neither player can move. Most pieces wins; equal scores are a draw.</p>
+      <p class="keyboard-note">Keyboard: Tab to the board, arrow keys to explore, Enter or Space to select and move. Escape clears your selection.</p>
+      <form method="dialog"><button class="primary-button">Let's play</button></form>
+    </dialog>
+    <dialog id="reset-dialog" aria-labelledby="reset-title">
+      <div class="dialog-eyebrow">A CLEAN SLATE</div>
+      <h2 id="reset-title">Another little rivalry?</h2>
+      <p>This will clear the current board and move history. Fern will go first again.</p>
+      <div class="dialog-actions"><button class="secondary-button" id="cancel-reset">Keep playing</button><button class="primary-button" id="confirm-reset">Start new game</button></div>
+    </dialog>
+  </body>
+</html>

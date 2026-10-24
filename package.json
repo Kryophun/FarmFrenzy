@@ -1,0 +1,14 @@
+{
+  "name": "farm-frenzy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Farm Frenzy: a local, two-human-player territory game inspired by Ataxx.",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

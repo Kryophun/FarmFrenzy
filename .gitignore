@@ -1,0 +1,4 @@
+node_modules/
+coverage/
+.playwright-mcp/
+.DS_Store
