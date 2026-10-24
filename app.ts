@@ -2,6 +2,8 @@ import { SIZE, createGame, legalMoves, moveType, scores, applyMove } from "./gam
 import type { GameState, Move, Player } from "./game.js";
 import { PLAYER_TYPE_LABELS } from "./ai.js";
 import type { AiCandidate, AiMove, AiProgress, AiRequest, AiResponse, PlayerType } from "./ai.js";
+import { applyAutoFillWave, getAutoFillPlan } from "./auto-fill.js";
+import type { AutoFillWave } from "./auto-fill.js";
 
 function getElement<T extends HTMLElement>(selector: string, elementType: new () => T): T {
   const element = document.querySelector(selector);
@@ -28,6 +30,16 @@ interface AnimatedMove {
   tussles: { cloud: HTMLElement; animation: Animation }[];
 }
 
+interface AutoFillSequence {
+  waves: AutoFillWave[];
+  index: number;
+  previousBoard: GameState["board"] | null;
+  destinations: Set<number>;
+  ghosts: { element: HTMLElement; animation: Animation }[];
+  splits: Animation[];
+  timer: number | null;
+}
+
 const pieceChoices: readonly PieceChoice[] = [
   { id: "cow", name: "Cow", symbol: "🐮", defaultName: "MooMoo" },
   { id: "pig", name: "Pig", symbol: "🐷", defaultName: "Oinkers" },
@@ -48,6 +60,7 @@ let aiWorker: Worker | null = null;
 let thinkingPlayer: Player | null = null;
 let latestAiProgress: AiProgress | null = null;
 let activeMoveAnimation: AnimatedMove | null = null;
+let activeAutoFill: AutoFillSequence | null = null;
 let matchStarted = false;
 let state = createGame();
 let selected: number | null = null;
@@ -146,7 +159,7 @@ getElement("#piece-form", HTMLFormElement).addEventListener("submit", event => {
   render();
   announcement.textContent = `${playerNames[1]}'s ${playerPieces[1].name} vs. ${playerNames[2]}'s ${playerPieces[2].name}. ${playerNames[1]} goes first.`;
   cells[0].focus();
-  scheduleAi();
+  continueGame();
 });
 pieceDialog.addEventListener("cancel", event => { event.preventDefault(); });
 
@@ -189,7 +202,7 @@ for (let index = 0; index < SIZE * SIZE; index++) {
 }
 
 function selectCell(index: number): void {
-  if (!matchStarted || state.over || activeMoveAnimation !== null || playerTypes[state.turn] !== "human") {
+  if (!matchStarted || state.over || activeMoveAnimation !== null || activeAutoFill !== null || playerTypes[state.turn] !== "human") {
     return;
   }
   if (state.board[index] === state.turn) {
@@ -207,6 +220,39 @@ function selectCell(index: number): void {
     return;
   }
   playMove(selected, index);
+}
+
+function animateCloneSource(from: number, duration: number): Animation | null {
+  return cells[from].querySelector<HTMLElement>(".piece")?.animate([
+    { transform: "scale(1)" },
+    { transform: "scale(1.15, 0.87)", offset: 0.35 },
+    { transform: "scale(1)" },
+  ], { duration, easing: "ease-in-out" }) ?? null;
+}
+
+function animatePieceTravel(
+  ghost: HTMLElement,
+  origin: DOMRect,
+  destination: DOMRect,
+  area: DOMRect,
+  type: Move["type"],
+  duration: number,
+): Animation {
+  const cloning = type === "clone";
+  const dx = destination.left - origin.left;
+  const dy = destination.top - origin.top;
+  const arc = Math.min(28, origin.height * (cloning ? 0.2 : 0.45));
+  ghost.classList.add("move-ghost");
+  ghost.style.left = `${origin.left - area.left + origin.width * 0.12}px`;
+  ghost.style.top = `${origin.top - area.top + origin.height * 0.12}px`;
+  ghost.style.width = `${origin.width * 0.76}px`;
+  ghost.style.height = `${origin.height * 0.76}px`;
+  board.append(ghost);
+  return ghost.animate([
+    { transform: "translate(0, 0) scale(0.9)", opacity: cloning ? 0.65 : 1 },
+    { transform: `translate(${dx / 2}px, ${dy / 2 - arc}px) scale(1.08)`, opacity: 1, offset: 0.5 },
+    { transform: `translate(${dx}px, ${dy}px) scale(1)`, opacity: 1 },
+  ], { duration, easing: "cubic-bezier(0.25, 0.1, 0.25, 1)", fill: "forwards" });
 }
 
 function playMove(from: number, to: number): void {
@@ -234,32 +280,15 @@ function playMove(from: number, to: number): void {
   render(true);
   if (motion === null) {
     announceMove(nextState.lastMove);
-    scheduleAi();
+    continueGame();
     return;
   }
   const cloning = motion.move.type === "clone";
   const duration = cloning ? 300 : 380;
-  const dx = destination.left - origin.left;
-  const dy = destination.top - origin.top;
-  const arc = Math.min(28, origin.height * (cloning ? 0.2 : 0.45));
-  ghost.classList.add("move-ghost");
-  ghost.style.left = `${origin.left - area.left + origin.width * 0.12}px`;
-  ghost.style.top = `${origin.top - area.top + origin.height * 0.12}px`;
-  ghost.style.width = `${origin.width * 0.76}px`;
-  ghost.style.height = `${origin.height * 0.76}px`;
-  board.append(ghost);
   if (cloning) {
-    motion.split = cells[from].querySelector<HTMLElement>(".piece")?.animate([
-      { transform: "scale(1)" },
-      { transform: "scale(1.15, 0.87)", offset: 0.35 },
-      { transform: "scale(1)" },
-    ], { duration, easing: "ease-in-out" }) ?? null;
+    motion.split = animateCloneSource(from, duration);
   }
-  motion.travel = ghost.animate([
-    { transform: "translate(0, 0) scale(0.9)", opacity: cloning ? 0.65 : 1 },
-    { transform: `translate(${dx / 2}px, ${dy / 2 - arc}px) scale(1.08)`, opacity: 1, offset: 0.5 },
-    { transform: `translate(${dx}px, ${dy}px) scale(1)`, opacity: 1 },
-  ], { duration, easing: "cubic-bezier(0.25, 0.1, 0.25, 1)", fill: "forwards" });
+  motion.travel = animatePieceTravel(ghost, origin, destination, area, motion.move.type, duration);
   motion.travel.onfinish = (): void => {
     if (activeMoveAnimation !== motion) {
       return;
@@ -268,7 +297,7 @@ function playMove(from: number, to: number): void {
       startCaptureTussle(motion);
     } else {
       cancelMoveAnimation();
-      scheduleAi();
+      continueGame();
     }
   };
   announcement.textContent = `${playerNames[motion.move.player]} is ${cloning ? "cloning" : "jumping"} from ${coordinate(from)} to ${coordinate(to)}.`;
@@ -334,7 +363,7 @@ function startCaptureTussle(motion: AnimatedMove): void {
       remaining--;
       if (remaining === 0) {
         cancelMoveAnimation();
-        scheduleAi();
+        continueGame();
       }
     };
   }
@@ -359,6 +388,133 @@ function cancelMoveAnimation(): void {
   announceMove(motion.move);
 }
 
+function continueGame(): void {
+  cancelAi();
+  if (!matchStarted || state.over || activeMoveAnimation !== null || activeAutoFill !== null || aiPaused || aiError !== null
+    || pieceDialog.open || rulesDialog.open || resetDialog.open) {
+    return;
+  }
+  const waves = getAutoFillPlan(state);
+  if (waves === null) {
+    scheduleAi();
+    return;
+  }
+  const sequence: AutoFillSequence = {
+    waves, index: 0, previousBoard: null, destinations: new Set(), ghosts: [], splits: [], timer: null,
+  };
+  activeAutoFill = sequence;
+  selected = null;
+  render();
+  announcement.textContent = `The remaining territory is settled. Finishing automatically in ${waves.length} ${waves.length === 1 ? "wave" : "waves"}.`;
+  sequence.timer = window.setTimeout(() => {
+    sequence.timer = null;
+    startAutoFillWave(sequence);
+  }, 350);
+}
+
+function startAutoFillWave(sequence: AutoFillSequence): void {
+  if (activeAutoFill !== sequence) {
+    return;
+  }
+  const wave = sequence.waves[sequence.index];
+  const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const area = board.getBoundingClientRect();
+  const prepared = reducedMotion ? [] : wave.map(clone => {
+    const ghost = cells[clone.from].querySelector(".piece")?.cloneNode(true);
+    if (!(ghost instanceof HTMLElement)) {
+      throw new Error("A source piece is missing from the automatic fill wave.");
+    }
+    return {
+      clone, ghost, origin: cells[clone.from].getBoundingClientRect(), destination: cells[clone.to].getBoundingClientRect(),
+    };
+  });
+  const previousBoard = state.board;
+  state = applyAutoFillWave(state, wave);
+  sequence.previousBoard = reducedMotion ? null : previousBoard;
+  sequence.destinations = new Set(reducedMotion ? [] : wave.map(clone => clone.to));
+  render();
+  announcement.textContent = `Auto finish, wave ${sequence.index + 1} of ${sequence.waves.length}: cloning ${wave.length} ${wave.length === 1 ? "piece" : "pieces"} together.`;
+  if (reducedMotion) {
+    sequence.timer = window.setTimeout(() => {
+      sequence.timer = null;
+      finishAutoFillWave(sequence);
+    }, 350);
+    return;
+  }
+  let remaining = prepared.length;
+  for (const { ghost, origin, destination } of prepared) {
+    const animation = animatePieceTravel(ghost, origin, destination, area, "clone", 320);
+    sequence.ghosts.push({ element: ghost, animation });
+    animation.onfinish = (): void => {
+      if (activeAutoFill !== sequence) {
+        return;
+      }
+      remaining--;
+      if (remaining === 0) {
+        finishAutoFillWave(sequence);
+      }
+    };
+  }
+  for (const from of new Set(wave.map(clone => clone.from))) {
+    const split = animateCloneSource(from, 320);
+    if (split !== null) {
+      sequence.splits.push(split);
+    }
+  }
+}
+
+function clearAutoFillVisuals(sequence: AutoFillSequence): void {
+  if (sequence.timer !== null) {
+    window.clearTimeout(sequence.timer);
+    sequence.timer = null;
+  }
+  for (const { element, animation } of sequence.ghosts) {
+    animation.onfinish = null;
+    animation.cancel();
+    element.remove();
+  }
+  for (const animation of sequence.splits) {
+    animation.cancel();
+  }
+  sequence.ghosts.length = 0;
+  sequence.splits.length = 0;
+}
+
+function finishAutoFillWave(sequence: AutoFillSequence): void {
+  if (activeAutoFill !== sequence) {
+    return;
+  }
+  clearAutoFillVisuals(sequence);
+  sequence.previousBoard = null;
+  sequence.destinations.clear();
+  sequence.index++;
+  if (sequence.index === sequence.waves.length) {
+    activeAutoFill = null;
+    render(true);
+    if (!state.over) {
+      throw new Error("Automatic fill finished without completing the board.");
+    }
+    const count = scores(state.board);
+    announcement.textContent = `Settled territory filled automatically. ${state.winner === 0 ? "It's a draw!" : `${playerNames[state.winner]} wins!`} ${playerNames[1]} ${count[1]}, ${playerNames[2]} ${count[2]}.`;
+    return;
+  }
+  render();
+  sequence.timer = window.setTimeout(() => {
+    sequence.timer = null;
+    startAutoFillWave(sequence);
+  }, 160);
+}
+
+function cancelAutoFill(): void {
+  const sequence = activeAutoFill;
+  if (sequence === null) {
+    return;
+  }
+  activeAutoFill = null;
+  clearAutoFillVisuals(sequence);
+  render();
+}
+
 function cancelAi(): void {
   if (aiTimer !== null) {
     window.clearTimeout(aiTimer);
@@ -366,7 +522,7 @@ function cancelAi(): void {
   }
   aiWorker?.terminate();
   aiWorker = null;
-  board.setAttribute("aria-busy", String(activeMoveAnimation !== null));
+  board.setAttribute("aria-busy", String(activeMoveAnimation !== null || activeAutoFill !== null));
   renderAiThinking();
 }
 
@@ -382,7 +538,7 @@ function showAiError(message: string): void {
 function scheduleAi(): void {
   cancelAi();
   const difficulty = playerTypes[state.turn];
-  if (!matchStarted || state.over || activeMoveAnimation !== null || difficulty === "human" || aiPaused || aiError !== null
+  if (!matchStarted || state.over || activeMoveAnimation !== null || activeAutoFill !== null || difficulty === "human" || aiPaused || aiError !== null
     || pieceDialog.open || rulesDialog.open || resetDialog.open) {
     return;
   }
@@ -509,7 +665,8 @@ function render(animate = false): void {
   const destinations = selected === null ? [] : legalMoves(state.board, selected);
   cells.forEach((cell, index) => {
     const piece = state.board[index];
-    const visiblePiece = activeMoveAnimation?.phase === "travel" && activeMoveAnimation.move.to === index ? 0
+    const visiblePiece = activeAutoFill?.destinations.has(index) === true ? 0
+      : activeMoveAnimation?.phase === "travel" && activeMoveAnimation.move.to === index ? 0
       : activeMoveAnimation?.move.captured.includes(index) === true
         ? activeMoveAnimation.previousBoard[index] : piece;
     const destinationType = selected !== null && destinations.includes(index) ? moveType(selected, index) : null;
@@ -542,12 +699,12 @@ function render(animate = false): void {
     }
     cell.tabIndex = index === focused ? 0 : -1;
     cell.setAttribute("aria-pressed", String(selected === index));
-    cell.setAttribute("aria-disabled", String(!matchStarted || state.over || activeMoveAnimation !== null || playerTypes[state.turn] !== "human"));
+    cell.setAttribute("aria-disabled", String(!matchStarted || state.over || activeMoveAnimation !== null || activeAutoFill !== null || playerTypes[state.turn] !== "human"));
     const owner = piece ? `${playerNames[piece]}${playerPieces[piece] !== null ? ` (${playerPieces[piece].name})` : ""}` : "empty";
     cell.setAttribute("aria-label", `${coordinate(index)}, ${owner}${destinationType ? `, ${destinationType} available` : ""}`);
   });
 
-  const count = scores(activeMoveAnimation?.previousBoard ?? state.board);
+  const count = scores(activeAutoFill?.previousBoard ?? activeMoveAnimation?.previousBoard ?? state.board);
   for (const player of players) {
     const displayName = getElement(`#player-${player}-display-name`, HTMLSpanElement);
     displayName.textContent = playerNames[player];
@@ -559,8 +716,11 @@ function render(animate = false): void {
       avatar.title = choice.name;
     }
     getElement(`#score-${player}`, HTMLElement).textContent = String(count[player]);
-    getElement(`#player-${player}`, HTMLElement).classList.toggle("active", !state.over && state.turn === player);
-    getElement(`#player-${player}-status`, HTMLElement).textContent = activeMoveAnimation !== null
+    getElement(`#player-${player}`, HTMLElement).classList.toggle("active", activeAutoFill !== null
+      ? activeAutoFill.waves[activeAutoFill.index].some(clone => clone.player === player)
+      : !state.over && state.turn === player);
+    getElement(`#player-${player}-status`, HTMLElement).textContent = activeAutoFill !== null ? "Finishing territory..."
+      : activeMoveAnimation !== null
       ? activeMoveAnimation.move.player === player
         ? activeMoveAnimation.phase === "tussle" ? "Tussling..."
           : activeMoveAnimation.move.type === "clone" ? "Cloning..." : "Jumping..." : "Up next"
@@ -575,23 +735,27 @@ function render(animate = false): void {
   getElement("#fern-share", HTMLElement).style.width = `${count[1] / (count[1] + count[2]) * 100}%`;
   getElement("#coral-share", HTMLElement).style.width = `${count[2] / (count[1] + count[2]) * 100}%`;
   const turnLabel = getElement("#turn-label", HTMLDivElement);
-  turnLabel.classList.toggle("coral", activeMoveAnimation !== null ? activeMoveAnimation.move.player === 2
+  turnLabel.classList.toggle("coral", activeAutoFill !== null ? false
+    : activeMoveAnimation !== null ? activeMoveAnimation.move.player === 2
     : state.over ? state.winner === 2 : state.turn === 2);
   turnLabel.replaceChildren(document.createElement("span"), document.createTextNode(
-    activeMoveAnimation !== null
+    activeAutoFill !== null ? "Filling settled territory..."
+    : activeMoveAnimation !== null
       ? `${playerNames[activeMoveAnimation.move.player]} is ${activeMoveAnimation.phase === "tussle" ? "tussling"
         : activeMoveAnimation.move.type === "clone" ? "cloning" : "jumping"}...`
     : state.over ? state.winner === 0 ? "A perfectly matched rivalry." : `${playerNames[state.winner]} wins!`
       : playerTypes[state.turn] === "human" ? `${playerNames[state.turn]}'s turn`
         : `${playerNames[state.turn]}${aiError !== null ? "'s AI stopped" : aiPaused ? "'s AI is paused" : " is thinking..."}`,
   ));
-  getElement("#move-counter", HTMLElement).textContent = `MOVE ${String(state.moves + (state.over ? 0 : 1)).padStart(2, "0")}`;
+  getElement("#move-counter", HTMLElement).textContent = activeAutoFill !== null
+    ? `FILL WAVE ${activeAutoFill.index + 1}/${activeAutoFill.waves.length}`
+    : `MOVE ${String(state.moves + (state.over ? 0 : 1)).padStart(2, "0")}`;
   getElement("#undo", HTMLButtonElement).disabled = !history.length;
   getElement("#new-game", HTMLButtonElement).disabled = !matchStarted;
   getElement("#new-game-label", HTMLSpanElement).textContent = state.over ? "Play again" : "New game";
   const hasAi = players.some(player => playerTypes[player] !== "human");
   const pauseButton = getElement("#toggle-ai", HTMLButtonElement);
-  pauseButton.hidden = !matchStarted || !hasAi || state.over || aiError !== null;
+  pauseButton.hidden = !matchStarted || !hasAi || state.over || activeAutoFill !== null || aiError !== null;
   pauseButton.textContent = aiPaused ? "Resume AI" : "Pause AI";
   pauseButton.setAttribute("aria-pressed", String(aiPaused));
   getElement("#retry-ai", HTMLButtonElement).hidden = aiError === null;
@@ -601,7 +765,9 @@ function render(animate = false): void {
     ? "Two humans. One board. A friendly rivalry."
     : humanCount === 1 ? "One human. One AI. A friendly rivalry." : "Two AIs. One board. Watch them grow.";
   getElement("#rules-first-player", HTMLSpanElement).textContent = playerNames[1];
-  getElement("#selection-hint", HTMLElement).textContent = activeMoveAnimation !== null
+  getElement("#selection-hint", HTMLElement).textContent = activeAutoFill !== null
+    ? "No captures remain. Filling every safe clone square together."
+    : activeMoveAnimation !== null
     ? activeMoveAnimation.phase === "tussle" ? "A friendly tussle in the dust." : "A little takeover in motion."
     : state.over
     ? "Good game. A rematch is only a click away."
@@ -611,7 +777,7 @@ function render(animate = false): void {
     : selected === null ? `Pick a ${playerNames[state.turn]} piece to see your possibilities.`
       : destinations.length ? "Filled dots clone. Outlined dots jump. Your move."
         : "This piece is blocked. Try another of your pieces.";
-  board.setAttribute("aria-busy", String(activeMoveAnimation !== null || aiWorker !== null || aiTimer !== null));
+  board.setAttribute("aria-busy", String(activeMoveAnimation !== null || activeAutoFill !== null || aiWorker !== null || aiTimer !== null));
   renderAiThinking();
 }
 
@@ -637,6 +803,7 @@ getElement("#undo", HTMLButtonElement).addEventListener("click", () => {
   }
   cancelAi();
   cancelMoveAnimation();
+  cancelAutoFill();
   if (players.filter(player => playerTypes[player] === "human").length === 1) {
     while (playerTypes[previous.turn] !== "human" && history.length > 0) {
       const earlier = history.pop();
@@ -661,6 +828,7 @@ function openPlayerChoice(): void {
   matchStarted = false;
   cancelAi();
   cancelMoveAnimation();
+  cancelAutoFill();
   state = createGame();
   thinkingPlayer = null;
   latestAiProgress = null;
@@ -678,6 +846,7 @@ function openPlayerChoice(): void {
 getElement("#new-game", HTMLButtonElement).addEventListener("click", () => {
   cancelAi();
   cancelMoveAnimation();
+  cancelAutoFill();
   if (history.length && !state.over) {
     resetDialog.showModal();
   } else {
@@ -693,13 +862,14 @@ document.querySelectorAll(".rules-trigger").forEach(button => {
   button.addEventListener("click", () => {
     cancelAi();
     cancelMoveAnimation();
+    cancelAutoFill();
     rulesDialog.showModal();
   });
 });
 for (const dialog of [rulesDialog, resetDialog]) {
   dialog.addEventListener("close", () => {
     render();
-    scheduleAi();
+    continueGame();
   });
   dialog.addEventListener("click", event => {
     if (event.target !== dialog) {
@@ -714,16 +884,17 @@ for (const dialog of [rulesDialog, resetDialog]) {
 
 getElement("#toggle-ai", HTMLButtonElement).addEventListener("click", () => {
   cancelMoveAnimation();
+  cancelAutoFill();
   aiPaused = !aiPaused;
   render();
-  scheduleAi();
+  continueGame();
   announcement.textContent = aiPaused ? "AI paused. Take your time." : "AI resumed.";
 });
 getElement("#retry-ai", HTMLButtonElement).addEventListener("click", () => {
   aiError = null;
   aiPaused = false;
   render();
-  scheduleAi();
+  continueGame();
   announcement.textContent = `Retrying ${playerNames[state.turn]}'s AI turn.`;
 });
 getElement("#show-ai-thinking", HTMLInputElement).addEventListener("change", renderAiThinking);

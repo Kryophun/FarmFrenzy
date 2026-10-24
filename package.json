@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc && node dist/build.js",
     "start": "npm run build && node dist/server.js",
-    "test": "npm run build && node --test dist/game.test.js dist/ai.test.js",
+    "test": "npm run build && node --test dist/game.test.js dist/ai.test.js dist/auto-fill.test.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --max-warnings 0",
     "lint:fix": "npm run lint -- --fix",

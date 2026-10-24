@@ -13,7 +13,7 @@ npm start
 
 Open `http://127.0.0.1:3000` in your browser. `npm start` compiles the TypeScript and copies the HTML/CSS to `dist` before starting the server. Restart it after editing source files. Set `PORT` or `HOST` to override the development server defaults.
 
-For static hosting, run `npm run build` and publish only `dist/index.html`, `dist/styles.css`, `dist/app.js`, `dist/game.js`, `dist/ai.js`, and `dist/ai-worker.js`. Serve them together over HTTP(S), including the worker modules.
+For static hosting, run `npm run build` and publish only `dist/index.html`, `dist/styles.css`, `dist/app.js`, `dist/game.js`, `dist/ai.js`, `dist/ai-worker.js`, and `dist/auto-fill.js`. Serve them together over HTTP(S), including the worker modules.
 
 ## Play
 
@@ -31,7 +31,11 @@ Jumps visibly travel in an arc from the source to the destination. Clones split 
 
 Blocked players pass automatically. The game ends when the board fills, a player loses all pieces, or neither player has a legal move. The player with more pieces wins; equal scores are a draw. There is no repetition limit. New game asks for confirmation during an active match; after a match ends, it becomes Play again and opens player choice without confirmation. Pending AI work is cancelled, and no new match begins until you press Let's play on the player-choice screen.
 
+**Automatic endgame finish:** when every remaining empty square is reachable by exactly one side through the remaining empty squares (including potential jumps), and all those squares can be filled by cloning, the game takes over. It clones into every currently available safe square simultaneously, for both sides, then pauses briefly and repeats until full. Squares created in a wave only become sources in the following wave. Any contested square keeps normal play, even when no immediate capture is available. Reduced-motion mode still fills in paced batches without movement effects. Existing immediate wins by elimination remain unchanged.
+
 **Undo** restores one move in human-vs-human and AI-vs-AI games. Against one AI, it rewinds to the last human decision, including intervening AI moves. Undoing to an AI turn pauses AI until **Resume AI** is pressed. **Pause AI** stops pending AI work without changing the board; human turns are still playable. Opening the rules or restart dialog temporarily suspends AI and closing it resumes eligible turns. Restarting or undoing cancels any pending AI result. If AI fails to load or select a valid move, the game reports the error and offers **Retry AI** rather than silently making a fallback move.
+
+Automatic fill waves do not create separate undo entries: undo removes the triggering move and the entire automatic finish. Rules and new-game controls safely interrupt automatic fill; returning to play resumes any remaining settled territory. An already-paused AI remains paused until Resume AI is chosen.
 
 Enable **Show AI thinking** during a match to open the move explorer. It shows actual candidate moves, their evaluations, the current candidate, best move, search depth, and visited positions. Worker updates are throttled, and the final analysis stays visible during the following human turn. Easy AI lists legal choices without invented scores. Medium and Hard display estimated piece advantage from the current AI's perspective; higher is better, and `≤` marks a search upper bound rather than an exact score. Hard's final report uses its last fully completed search depth. Undo and new games clear stale analysis.
 
@@ -49,7 +53,7 @@ npm run build
 npm run check
 ```
 
-`game.ts` is the typed, pure game engine, `ai.ts` contains the three AI strategies, `ai-worker.ts` runs AI off the UI thread, `app.ts` handles browser interaction, and `server.ts` serves only the public application files. `game.test.ts` and `ai.test.ts` cover game rules and AI strategies; `build.ts` copies static assets after compilation. Generated JavaScript lives in the ignored `dist` directory. There are no runtime package dependencies.
+`game.ts` is the typed, pure game engine, `ai.ts` contains the three AI strategies, `ai-worker.ts` runs AI off the UI thread, `auto-fill.ts` detects settled territory and plans safe fill waves, `app.ts` handles browser interaction, and `server.ts` serves only the public application files. The corresponding `*.test.ts` files cover game rules, AI strategies, and automatic fill; `build.ts` copies static assets after compilation. Generated JavaScript lives in the ignored `dist` directory. There are no runtime package dependencies.
 
 `eslint.config.ts` enables ESLint's recommended rules plus typescript-eslint's strict and stylistic type-checked presets for all TypeScript, including tests and tooling. Additional rules require explicit return types, safe boolean conditions, strict equality, braces, type-only imports, and exhaustive switches. Unsafe types, unhandled promises, unused code, and unused lint-disable directives fail linting; warnings also fail. Run `npm run lint:fix` for automatic fixes. `npm run check` runs lint, type checking, and the compiled game tests.
 

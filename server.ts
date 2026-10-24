@@ -9,6 +9,7 @@ const files = new Map<string, readonly [string, string]>([
   ["/game.js", ["game.js", "text/javascript; charset=utf-8"]],
   ["/ai.js", ["ai.js", "text/javascript; charset=utf-8"]],
   ["/ai-worker.js", ["ai-worker.js", "text/javascript; charset=utf-8"]],
+  ["/auto-fill.js", ["auto-fill.js", "text/javascript; charset=utf-8"]],
 ]);
 const { PORT = "3000", HOST = "127.0.0.1" } = process.env;
 const port = Number(PORT || "3000");
