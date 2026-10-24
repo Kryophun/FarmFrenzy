@@ -115,6 +115,10 @@ h1 em{font-family:Georgia,serif;font-weight:400;color:#6c8153;letter-spacing:-1.
 .caption-dot{width:5px;height:5px;border-radius:50%;background:#97a77d;flex-shrink:0}
 .game-controls{display:flex;justify-content:center;gap:10px;flex-wrap:wrap}
 .game-controls [hidden]{display:none}
+.sound-settings{display:flex;justify-content:center;align-items:center;gap:8px;margin-top:14px;font-size:11px;color:#6f7e61}
+.sound-settings select{font:inherit;background:#fffef8;border:1px solid #dce1d2;border-radius:7px;color:#405b3b;padding:6px 24px 6px 10px}
+.sound-settings select:focus-visible{outline:3px solid #b4783f;outline-offset:3px}
+.sound-status{text-align:center;color:#94653b;font-size:10px;line-height:1.7;margin:8px 0;overflow-wrap:anywhere}
 .thinking-toggle{display:flex;align-items:center;justify-content:center;gap:7px;font-size:11px;color:#6f7e61;margin-top:16px;cursor:pointer}
 .thinking-toggle[hidden],.ai-thinking[hidden]{display:none}
 .thinking-toggle input{accent-color:#294b39}

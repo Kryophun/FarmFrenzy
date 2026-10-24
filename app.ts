@@ -4,6 +4,7 @@ import { PLAYER_TYPE_LABELS } from "./ai.js";
 import type { AiCandidate, AiMove, AiProgress, AiRequest, AiResponse, PlayerType } from "./ai.js";
 import { applyAutoFillWave, getAutoFillPlan } from "./auto-fill.js";
 import type { AutoFillWave } from "./auto-fill.js";
+import { TussleSound } from "./sound.js";
 
 function getElement<T extends HTMLElement>(selector: string, elementType: new () => T): T {
   const element = document.querySelector(selector);
@@ -72,6 +73,10 @@ const rulesDialog = getElement("#rules-dialog", HTMLDialogElement);
 const resetDialog = getElement("#reset-dialog", HTMLDialogElement);
 const pieceDialog = getElement("#piece-dialog", HTMLDialogElement);
 const startGameButton = getElement("#start-game", HTMLButtonElement);
+const soundSelector = getElement("#sound-mode", HTMLSelectElement);
+const soundStatus = getElement("#sound-status", HTMLParagraphElement);
+const gameSound = new TussleSound();
+let soundRequest = 0;
 const cells: HTMLButtonElement[] = [];
 const pieceInputs: { player: Player; choice: PieceChoice; input: HTMLInputElement; label: HTMLLabelElement }[] = [];
 
@@ -154,6 +159,7 @@ getElement("#piece-form", HTMLFormElement).addEventListener("submit", event => {
   if (!getElement("#piece-form", HTMLFormElement).reportValidity()) {
     return;
   }
+  activateSound();
   matchStarted = true;
   pieceDialog.close();
   render();
@@ -279,6 +285,9 @@ function playMove(from: number, to: number): void {
   activeMoveAnimation = motion;
   render(true);
   if (motion === null) {
+    if (nextState.lastMove.captured.length > 0) {
+      playCaptureSound();
+    }
     announceMove(nextState.lastMove);
     continueGame();
     return;
@@ -297,6 +306,9 @@ function playMove(from: number, to: number): void {
       startCaptureTussle(motion);
     } else {
       cancelMoveAnimation();
+      if (motion.move.captured.length > 0) {
+        playCaptureSound();
+      }
       continueGame();
     }
   };
@@ -311,6 +323,7 @@ function startCaptureTussle(motion: AnimatedMove): void {
     throw new Error("Both players need a piece for the capture animation.");
   }
   motion.phase = "tussle";
+  playCaptureSound();
   motion.travel?.cancel();
   motion.travel = null;
   motion.split?.cancel();
@@ -371,6 +384,7 @@ function startCaptureTussle(motion: AnimatedMove): void {
 }
 
 function cancelMoveAnimation(): void {
+  gameSound.stop();
   const motion = activeMoveAnimation;
   if (motion === null) {
     return;
@@ -386,6 +400,41 @@ function cancelMoveAnimation(): void {
   }
   render(true);
   announceMove(motion.move);
+}
+
+function reportSoundError(error: unknown): void {
+  soundRequest++;
+  gameSound.setEnabled(false);
+  soundSelector.value = "off";
+  console.error("Game sound unavailable:", error);
+  soundStatus.textContent = `Sound unavailable: ${error instanceof Error ? error.message : "Audio playback failed."} You can keep playing silently.`;
+  soundStatus.hidden = false;
+}
+
+function activateSound(): void {
+  const request = ++soundRequest;
+  const enabled = soundSelector.value === "on";
+  gameSound.setEnabled(enabled);
+  soundStatus.textContent = "";
+  soundStatus.hidden = true;
+  if (enabled) {
+    void gameSound.unlock().catch((error: unknown) => {
+      if (request === soundRequest) {
+        reportSoundError(error);
+      }
+    });
+  }
+}
+
+function playCaptureSound(): void {
+  if (document.hidden) {
+    return;
+  }
+  try {
+    gameSound.play();
+  } catch (error) {
+    reportSoundError(error);
+  }
 }
 
 function continueGame(): void {
@@ -898,6 +947,12 @@ getElement("#retry-ai", HTMLButtonElement).addEventListener("click", () => {
   announcement.textContent = `Retrying ${playerNames[state.turn]}'s AI turn.`;
 });
 getElement("#show-ai-thinking", HTMLInputElement).addEventListener("change", renderAiThinking);
+soundSelector.addEventListener("change", activateSound);
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) {
+    gameSound.stop();
+  }
+});
 
 render();
 updatePiecePicker();

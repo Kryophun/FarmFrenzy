@@ -68,6 +68,14 @@
               <button class="secondary-button" id="retry-ai" hidden>Retry AI</button>
               <button class="primary-button" id="new-game"><span aria-hidden="true">↻</span> <span id="new-game-label">New game</span></button>
             </div>
+            <div class="sound-settings">
+              <label for="sound-mode">Sound</label>
+              <select id="sound-mode" aria-describedby="sound-status">
+                <option value="on">On</option>
+                <option value="off">Off</option>
+              </select>
+            </div>
+            <p class="sound-status" id="sound-status" role="status" aria-live="polite" hidden></p>
             <label class="thinking-toggle" id="thinking-toggle" hidden><input type="checkbox" id="show-ai-thinking"> Show AI thinking</label>
             <p class="announcement" id="announcement" role="status" aria-live="polite" aria-atomic="true">Choose your pieces and names to start.</p>
             <section class="ai-thinking" id="ai-thinking" aria-labelledby="ai-thinking-title" hidden>

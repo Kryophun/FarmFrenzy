@@ -13,7 +13,7 @@ npm start
 
 Open `http://127.0.0.1:3000` in your browser. `npm start` compiles the TypeScript and copies the HTML/CSS to `dist` before starting the server. Restart it after editing source files. Set `PORT` or `HOST` to override the development server defaults.
 
-For static hosting, run `npm run build` and publish only `dist/index.html`, `dist/styles.css`, `dist/app.js`, `dist/game.js`, `dist/ai.js`, `dist/ai-worker.js`, and `dist/auto-fill.js`. Serve them together over HTTP(S), including the worker modules.
+For static hosting, run `npm run build` and publish only `dist/index.html`, `dist/styles.css`, `dist/app.js`, `dist/game.js`, `dist/ai.js`, `dist/ai-worker.js`, `dist/auto-fill.js`, and `dist/sound.js`. Serve them together over HTTP(S), including the worker modules.
 
 ## Play
 
@@ -28,6 +28,8 @@ New game and Play again return to the player-choice screen. Current pieces, name
 - **Flip:** every opposing piece immediately adjacent to the destination becomes yours. Flips do not chain.
 
 Jumps visibly travel in an arc from the source to the destination. Clones split off while the original piece stays behind. After landing, each captured piece gets a brief cartoon dust-cloud tussle featuring both players' animals, then reveals its new owner. Captures and scores settle when the tussles finish, and the next turn waits for the full animation. Reduced-motion preferences skip both travel and tussle animations. Undo, new-game actions, pause controls, and opening the rules safely finish or cancel any active visual transition, including every dust cloud.
+
+**Sound:** the game-screen Sound selector turns a short cartoon tussle effect on or off. Sound starts enabled and is unlocked by pressing Let's play; the choice stays the same across new games until the page is refreshed. Each capturing move plays one half-second effect, even when it takes several pieces. The sound is synthesized locally, with no recordings, downloads, or external audio services. Reduced-motion mode can still play capture sounds; Sound Off mutes immediately. Undo, restart, rules, and pause controls stop any playing effect. Background tabs stay silent. If browser audio is unavailable or blocked, a visible message explains it and gameplay continues with sound off.
 
 Blocked players pass automatically. The game ends when the board fills, a player loses all pieces, or neither player has a legal move. The player with more pieces wins; equal scores are a draw. There is no repetition limit. New game asks for confirmation during an active match; after a match ends, it becomes Play again and opens player choice without confirmation. Pending AI work is cancelled, and no new match begins until you press Let's play on the player-choice screen.
 
@@ -53,7 +55,7 @@ npm run build
 npm run check
 ```
 
-`game.ts` is the typed, pure game engine, `ai.ts` contains the three AI strategies, `ai-worker.ts` runs AI off the UI thread, `auto-fill.ts` detects settled territory and plans safe fill waves, `app.ts` handles browser interaction, and `server.ts` serves only the public application files. The corresponding `*.test.ts` files cover game rules, AI strategies, and automatic fill; `build.ts` copies static assets after compilation. Generated JavaScript lives in the ignored `dist` directory. There are no runtime package dependencies.
+`game.ts` is the typed, pure game engine, `ai.ts` contains the three AI strategies, `ai-worker.ts` runs AI off the UI thread, `auto-fill.ts` detects settled territory and plans safe fill waves, `sound.ts` synthesizes and controls capture audio, `app.ts` handles browser interaction, and `server.ts` serves only the public application files. The corresponding `*.test.ts` files cover game rules, AI strategies, automatic fill, and sound synthesis; `build.ts` copies static assets after compilation. Generated JavaScript lives in the ignored `dist` directory. There are no runtime package dependencies.
 
 `eslint.config.ts` enables ESLint's recommended rules plus typescript-eslint's strict and stylistic type-checked presets for all TypeScript, including tests and tooling. Additional rules require explicit return types, safe boolean conditions, strict equality, braces, type-only imports, and exhaustive switches. Unsafe types, unhandled promises, unused code, and unused lint-disable directives fail linting; warnings also fail. Run `npm run lint:fix` for automatic fixes. `npm run check` runs lint, type checking, and the compiled game tests.
 
