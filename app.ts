@@ -1,16 +1,25 @@
 import { SIZE, PLAYER_NAMES, createGame, legalMoves, moveType, scores, applyMove } from "./game.js";
+import type { GameState, Move, Player } from "./game.js";
+
+function getElement<T extends HTMLElement>(selector: string, elementType: new () => T): T {
+  const element = document.querySelector(selector);
+  if (!(element instanceof elementType)) {
+    throw new Error(`Missing or invalid game element: ${selector}`);
+  }
+  return element;
+}
 
 let state = createGame();
-let selected = null;
+let selected: number | null = null;
 let focused = 0;
-const history = [];
-const board = document.querySelector("#board");
-const announcement = document.querySelector("#announcement");
-const rulesDialog = document.querySelector("#rules-dialog");
-const resetDialog = document.querySelector("#reset-dialog");
-const cells = [];
+const history: GameState[] = [];
+const board = getElement("#board", HTMLDivElement);
+const announcement = getElement("#announcement", HTMLParagraphElement);
+const rulesDialog = getElement("#rules-dialog", HTMLDialogElement);
+const resetDialog = getElement("#reset-dialog", HTMLDialogElement);
+const cells: HTMLButtonElement[] = [];
 
-function coordinate(index) {
+function coordinate(index: number): string {
   return `${String.fromCharCode(65 + index % SIZE)}${Math.floor(index / SIZE) + 1}`;
 }
 
@@ -18,7 +27,7 @@ for (let index = 0; index < SIZE * SIZE; index++) {
   const cell = document.createElement("button");
   cell.type = "button";
   cell.className = "cell";
-  cell.addEventListener("click", () => selectCell(index));
+  cell.addEventListener("click", () => { selectCell(index); });
   cell.addEventListener("focus", () => {
     focused = index;
     cells.forEach((button, i) => { button.tabIndex = i === index ? 0 : -1; });
@@ -26,7 +35,7 @@ for (let index = 0; index < SIZE * SIZE; index++) {
   cell.addEventListener("keydown", event => {
     const row = Math.floor(index / SIZE);
     const column = index % SIZE;
-    const targets = {
+    const targets: Partial<Record<string, number>> = {
       ArrowUp: ((row + SIZE - 1) % SIZE) * SIZE + column,
       ArrowDown: ((row + 1) % SIZE) * SIZE + column,
       ArrowLeft: row * SIZE + (column + SIZE - 1) % SIZE,
@@ -34,9 +43,10 @@ for (let index = 0; index < SIZE * SIZE; index++) {
       Home: row * SIZE,
       End: row * SIZE + SIZE - 1,
     };
-    if (event.key in targets) {
+    const target = targets[event.key];
+    if (target !== undefined) {
       event.preventDefault();
-      cells[targets[event.key]].focus();
+      cells[target].focus();
     }
     if (event.key === "Escape") {
       selected = null;
@@ -47,8 +57,10 @@ for (let index = 0; index < SIZE * SIZE; index++) {
   board.append(cell);
 }
 
-function selectCell(index) {
-  if (state.over) return;
+function selectCell(index: number): void {
+  if (state.over) {
+    return;
+  }
   if (state.board[index] === state.turn) {
     selected = selected === index ? null : index;
     render();
@@ -64,22 +76,25 @@ function selectCell(index) {
     return;
   }
   history.push(state);
-  state = applyMove(state, selected, index);
+  const nextState = applyMove(state, selected, index);
+  state = nextState;
   selected = null;
   render(true);
-  announceMove();
+  announceMove(nextState.lastMove);
 }
 
-function render(animate = false) {
+function render(animate = false): void {
   const destinations = selected === null ? [] : legalMoves(state.board, selected);
   cells.forEach((cell, index) => {
     const piece = state.board[index];
-    const available = destinations.includes(index);
+    const destinationType = selected !== null && destinations.includes(index) ? moveType(selected, index) : null;
     cell.className = "cell";
     cell.classList.toggle("selected", selected === index);
-    if (available) cell.classList.add(`legal-${moveType(selected, index)}`);
+    if (destinationType) {
+      cell.classList.add(`legal-${destinationType}`);
+    }
     cell.classList.toggle("last-destination", state.lastMove?.to === index);
-    if (animate && (state.lastMove?.to === index || state.lastMove?.captured.includes(index))) {
+    if (animate && (state.lastMove?.to === index || state.lastMove?.captured.includes(index) === true)) {
       cell.classList.add("just-moved");
     }
     cell.replaceChildren();
@@ -91,57 +106,62 @@ function render(animate = false) {
     }
     cell.tabIndex = index === focused ? 0 : -1;
     cell.setAttribute("aria-pressed", String(selected === index));
-    cell.setAttribute("aria-label", `${coordinate(index)}, ${piece ? PLAYER_NAMES[piece] : "empty"}${available ? `, ${moveType(selected, index)} available` : ""}`);
+    cell.setAttribute("aria-label", `${coordinate(index)}, ${piece ? PLAYER_NAMES[piece] : "empty"}${destinationType ? `, ${destinationType} available` : ""}`);
   });
 
   const count = scores(state.board);
-  for (const player of [1, 2]) {
-    document.querySelector(`#score-${player}`).textContent = count[player];
-    document.querySelector(`#player-${player}`).classList.toggle("active", !state.over && state.turn === player);
-    document.querySelector(`#player-${player}-status`).textContent = state.over
+  const players: readonly Player[] = [1, 2];
+  for (const player of players) {
+    getElement(`#score-${player}`, HTMLElement).textContent = String(count[player]);
+    getElement(`#player-${player}`, HTMLElement).classList.toggle("active", !state.over && state.turn === player);
+    getElement(`#player-${player}-status`, HTMLElement).textContent = state.over
       ? state.winner === 0 ? "Good game" : state.winner === player ? "The winner!" : "Well played"
       : state.turn === player ? "Your move" : state.passed === player ? "No moves - passed" : "Up next";
   }
-  document.querySelector("#fern-share").style.width = `${count[1] / (count[1] + count[2]) * 100}%`;
-  document.querySelector("#coral-share").style.width = `${count[2] / (count[1] + count[2]) * 100}%`;
-  const turnLabel = document.querySelector("#turn-label");
+  getElement("#fern-share", HTMLElement).style.width = `${count[1] / (count[1] + count[2]) * 100}%`;
+  getElement("#coral-share", HTMLElement).style.width = `${count[2] / (count[1] + count[2]) * 100}%`;
+  const turnLabel = getElement("#turn-label", HTMLDivElement);
   turnLabel.classList.toggle("coral", state.over ? state.winner === 2 : state.turn === 2);
   turnLabel.replaceChildren(document.createElement("span"), document.createTextNode(
     state.over ? state.winner === 0 ? "A perfectly matched rivalry." : `${PLAYER_NAMES[state.winner]} wins!`
       : `${PLAYER_NAMES[state.turn]}'s turn`,
   ));
-  document.querySelector("#move-counter").textContent = `MOVE ${String(state.moves + (state.over ? 0 : 1)).padStart(2, "0")}`;
-  document.querySelector("#undo").disabled = !history.length;
-  document.querySelector("#selection-hint").textContent = state.over
+  getElement("#move-counter", HTMLElement).textContent = `MOVE ${String(state.moves + (state.over ? 0 : 1)).padStart(2, "0")}`;
+  getElement("#undo", HTMLButtonElement).disabled = !history.length;
+  getElement("#selection-hint", HTMLElement).textContent = state.over
     ? "Good game. A rematch is only a click away."
     : selected === null ? `Pick a ${PLAYER_NAMES[state.turn]} piece to see your possibilities.`
       : destinations.length ? "Filled dots clone. Outlined dots jump. Your move."
         : "This piece is blocked. Try another of your pieces.";
 }
 
-function announceMove() {
-  const move = state.lastMove;
+function announceMove(move: Move): void {
   const flipped = move.captured.length;
   let message = `${PLAYER_NAMES[move.player]} ${move.type === "clone" ? "cloned" : "jumped"} from ${coordinate(move.from)} to ${coordinate(move.to)}${flipped ? ` and flipped ${flipped} ${flipped === 1 ? "piece" : "pieces"}` : ""}.`;
   if (state.over) {
     const count = scores(state.board);
     message += ` ${state.winner === 0 ? "It's a draw!" : `${PLAYER_NAMES[state.winner]} wins!`} Fern ${count[1]}, Coral ${count[2]}.`;
   } else {
-    if (state.passed) message += ` ${PLAYER_NAMES[state.passed]} has no legal moves and passes.`;
+    if (state.passed !== null) {
+      message += ` ${PLAYER_NAMES[state.passed]} has no legal moves and passes.`;
+    }
     message += ` ${PLAYER_NAMES[state.turn]}'s turn.`;
   }
   announcement.textContent = message;
 }
 
-document.querySelector("#undo").addEventListener("click", () => {
-  if (!history.length) return;
-  state = history.pop();
+getElement("#undo", HTMLButtonElement).addEventListener("click", () => {
+  const previous = history.pop();
+  if (!previous) {
+    return;
+  }
+  state = previous;
   selected = null;
   render();
   announcement.textContent = `Move undone. ${PLAYER_NAMES[state.turn]}'s turn.`;
 });
 
-function resetGame() {
+function resetGame(): void {
   state = createGame();
   history.length = 0;
   selected = null;
@@ -150,23 +170,30 @@ function resetGame() {
   announcement.textContent = "A fresh start. Fern goes first.";
 }
 
-document.querySelector("#new-game").addEventListener("click", () => {
-  if (history.length && !state.over) resetDialog.showModal();
-  else resetGame();
+getElement("#new-game", HTMLButtonElement).addEventListener("click", () => {
+  if (history.length && !state.over) {
+    resetDialog.showModal();
+  } else {
+    resetGame();
+  }
 });
-document.querySelector("#cancel-reset").addEventListener("click", () => resetDialog.close());
-document.querySelector("#confirm-reset").addEventListener("click", () => {
+getElement("#cancel-reset", HTMLButtonElement).addEventListener("click", () => { resetDialog.close(); });
+getElement("#confirm-reset", HTMLButtonElement).addEventListener("click", () => {
   resetGame();
   resetDialog.close();
 });
 document.querySelectorAll(".rules-trigger").forEach(button => {
-  button.addEventListener("click", () => rulesDialog.showModal());
+  button.addEventListener("click", () => { rulesDialog.showModal(); });
 });
 for (const dialog of [rulesDialog, resetDialog]) {
   dialog.addEventListener("click", event => {
-    if (event.target !== dialog) return;
+    if (event.target !== dialog) {
+      return;
+    }
     const bounds = dialog.getBoundingClientRect();
-    if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) dialog.close();
+    if (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom) {
+      dialog.close();
+    }
   });
 }
 
