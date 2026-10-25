@@ -2,6 +2,10 @@
 
 A farm-fresh, responsive territory game inspired by Ataxx. Play with two humans on the same device, challenge an AI, or watch two AIs compete. Written in strict TypeScript, with no accounts or backend services.
 
+## Play online
+
+[Play Farm Frenzy](https://kryophun.github.io/FarmFrenzy/) in your browser.
+
 ## Run
 
 Install Node.js 22 or newer, then run:
@@ -62,3 +66,9 @@ npm run check
 `eslint.config.ts` enables ESLint's recommended rules plus typescript-eslint's strict and stylistic type-checked presets for all TypeScript, including tests and tooling. Additional rules require explicit return types, safe boolean conditions, strict equality, braces, type-only imports, and exhaustive switches. Unsafe types, unhandled promises, unused code, and unused lint-disable directives fail linting; warnings also fail. Run `npm run lint:fix` for automatic fixes. `npm run check` runs lint, type checking, and the compiled game tests.
 
 The Code quality GitHub Actions workflow runs `npm ci` and `npm run check` on pushes to `main` and on pull requests.
+
+## Publishing
+
+The **Publish game** workflow deploys to GitHub Pages whenever `main` changes, or when started manually with Run workflow. It installs the locked dependencies, runs lint, type checking, and tests, then uploads only the eight browser files listed above. Server code, tests, tooling, and repository configuration are not published.
+
+GitHub Pages uses **GitHub Actions** as its publishing source. Deployments use the repository's `github-pages` environment and the workflow's short-lived deployment credentials; no personal credentials are stored in the workflow.
