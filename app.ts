@@ -1,7 +1,7 @@
 import { SIZE, createGame, legalMoves, moveType, scores, applyMove } from "./game.js";
 import type { GameState, Move, Player } from "./game.js";
-import { PLAYER_TYPE_LABELS } from "./ai.js";
-import type { AiCandidate, AiMove, AiProgress, AiRequest, AiResponse, PlayerType } from "./ai.js";
+import { PLAYER_TYPE_LABELS, isSkillLevel, skillDescription, skillLabel } from "./ai.js";
+import type { AiCandidate, AiMove, AiProgress, AiRequest, AiResponse, PlayerType, SkillLevel } from "./ai.js";
 import { applyAutoFillWave, getAutoFillPlan } from "./auto-fill.js";
 import type { AutoFillWave } from "./auto-fill.js";
 import { TussleSound } from "./sound.js";
@@ -54,6 +54,7 @@ const playerPieces: Record<Player, PieceChoice | null> = { 1: null, 2: null };
 const playerNames: Record<Player, string> = { 1: "Player 1", 2: "Player 2" };
 const customizedNames = new Set<Player>();
 const playerTypes: Record<Player, PlayerType> = { 1: "human", 2: "human" };
+const playerSkills: Record<Player, SkillLevel> = { 1: 6, 2: 6 };
 let aiPaused = false;
 let aiError: string | null = null;
 let aiTimer: number | null = null;
@@ -84,16 +85,43 @@ let soundRequest = 0;
 const cells: HTMLButtonElement[] = [];
 const pieceInputs: { player: Player; choice: PieceChoice; input: HTMLInputElement; label: HTMLLabelElement }[] = [];
 
+function controllerLabel(player: Player): string {
+  return playerTypes[player] === "human" ? PLAYER_TYPE_LABELS.human : `${PLAYER_TYPE_LABELS.ai} · Level ${playerSkills[player]}`;
+}
+
+function updateSkillControl(player: Player): void {
+  const human = playerTypes[player] === "human";
+  const slider = getElement(`#player-${player}-strength`, HTMLInputElement);
+  getElement(`#player-${player}-skill-control`, HTMLDivElement).hidden = human;
+  slider.disabled = human;
+  slider.value = String(playerSkills[player]);
+  slider.setAttribute("aria-valuetext", skillLabel(playerSkills[player]));
+  getElement(`#player-${player}-strength-label`, HTMLOutputElement).textContent = skillLabel(playerSkills[player]);
+  getElement(`#player-${player}-strength-description`, HTMLParagraphElement).textContent = skillDescription(playerSkills[player]);
+}
+
 for (const player of players) {
   const typeInput = getElement(`#player-${player}-type`, HTMLSelectElement);
   typeInput.addEventListener("change", () => {
     const value = typeInput.value;
-    if (value !== "human" && value !== "easy" && value !== "medium" && value !== "hard") {
+    if (value !== "human" && value !== "ai") {
       throw new Error("Unknown player type.");
     }
     playerTypes[player] = value;
+    updateSkillControl(player);
     render();
   });
+  const strengthInput = getElement(`#player-${player}-strength`, HTMLInputElement);
+  strengthInput.addEventListener("input", () => {
+    const value = Number(strengthInput.value);
+    if (!isSkillLevel(value)) {
+      throw new Error("AI strength must be a whole-number level from 1 to 10.");
+    }
+    playerSkills[player] = value;
+    updateSkillControl(player);
+    render();
+  });
+  updateSkillControl(player);
   const nameInput = getElement(`#player-${player}-name`, HTMLInputElement);
   nameInput.addEventListener("input", () => {
     customizedNames.add(player);
@@ -626,9 +654,9 @@ function showAiError(message: string): void {
 
 function scheduleAi(): void {
   cancelAi();
-  const difficulty = playerTypes[state.turn];
+  const controller = playerTypes[state.turn];
   if (!matchStarted || state.over || activeMoveAnimation !== null || activeAutoFill !== null || pendingAutoFill !== null
-    || difficulty === "human" || aiPaused || aiError !== null
+    || controller === "human" || aiPaused || aiError !== null
     || pieceDialog.open || rulesDialog.open || resetDialog.open || autoFillDialog.open) {
     return;
   }
@@ -676,7 +704,7 @@ function scheduleAi(): void {
           showAiError("The AI response could not be read.");
         }
       };
-      const request: AiRequest = { state, difficulty };
+      const request: AiRequest = { state, skill: playerSkills[state.turn] };
       worker.postMessage(request);
     } catch (error) {
       showAiError(error instanceof Error ? error.message : "The AI worker could not be started.");
@@ -718,32 +746,42 @@ function renderAiThinking(): void {
   const progress = latestAiProgress;
   const active = aiWorker !== null || aiTimer !== null;
   const description = thinkingPlayer === null ? "AI analysis will appear on the next AI turn."
-    : `${playerNames[thinkingPlayer]} · ${PLAYER_TYPE_LABELS[playerTypes[thinkingPlayer]]} · ${
+    : `${playerNames[thinkingPlayer]} · ${skillLabel(progress?.skill ?? playerSkills[thinkingPlayer])} AI · ${
       aiError !== null ? "Stopped" : progress?.phase === "complete" ? "Move selected"
         : active ? "Thinking..." : "Analysis paused"}`;
   getElement("#ai-thinking-summary", HTMLParagraphElement).textContent = description;
   getElement("#ai-thinking-depth", HTMLSpanElement).textContent = progress === null ? ""
-    : progress.difficulty === "easy" ? `${progress.candidates.length} legal moves · random choice`
+    : progress.skill === 1 ? `${progress.candidates.length} legal moves · random choice`
       : `Depth ${progress.depth} · ${progress.candidates.filter(candidate => candidate.score !== null).length}/${progress.candidates.length} candidates evaluated · ${progress.nodes} positions visited`;
   getElement("#ai-thinking-current", HTMLParagraphElement).textContent = progress?.considering !== null && progress?.considering !== undefined
     ? `Considering: ${moveLabel(progress.considering)}`
     : active && progress?.phase !== "complete" ? "Evaluating candidate moves..." : "";
-  getElement("#ai-thinking-best", HTMLParagraphElement).textContent = progress?.bestMove !== null && progress?.bestMove !== undefined
-    ? `${progress.phase === "complete" ? "Selected" : "Best so far"}: ${moveLabel(progress.bestMove)}`
-    : "No move selected yet.";
+  let choice = "No move selected yet.";
+  if (progress !== null && progress.selectedMove !== null) {
+    const adjusted = progress.bestMove !== null && !sameMove(progress.selectedMove, progress.bestMove);
+    choice = `${progress.skill === 1 ? "Selected at random" : adjusted ? "Selected for this level" : "Selected"}: ${moveLabel(progress.selectedMove)}`;
+    if (adjusted && progress.bestMove !== null) {
+      choice += `. Best evaluated: ${moveLabel(progress.bestMove)}`;
+    }
+  } else if (progress !== null && progress.bestMove !== null) {
+    choice = `Best so far: ${moveLabel(progress.bestMove)}`;
+  }
+  getElement("#ai-thinking-best", HTMLParagraphElement).textContent = choice;
   const rows = progress?.candidates.map(candidate => {
     const row = document.createElement("tr");
     const best = sameMove(candidate.move, progress.bestMove);
+    const selected = sameMove(candidate.move, progress.selectedMove);
     const current = sameMove(candidate.move, progress.considering);
     row.classList.toggle("best-candidate", best);
+    row.classList.toggle("selected-candidate", selected);
     row.classList.toggle("current-candidate", current);
     const moveCell = document.createElement("td");
     moveCell.textContent = `${moveLabel(candidate.move)} (${moveType(candidate.move.from, candidate.move.to)})`;
     const scoreCell = document.createElement("td");
     scoreCell.textContent = evaluationLabel(candidate);
     const statusCell = document.createElement("td");
-    statusCell.textContent = current ? "Considering" : best
-      ? progress.phase === "complete" ? "Selected" : "Best so far"
+    statusCell.textContent = current ? "Considering" : selected ? "Selected" : best
+      ? progress.phase === "complete" ? "Best evaluated" : "Best so far"
       : candidate.score !== null ? "Evaluated" : progress.phase === "complete" ? "Not scored" : "Pending";
     row.append(moveCell, scoreCell, statusCell);
     return row;
@@ -852,7 +890,10 @@ function render(animate = false): void {
         ? playerTypes[player] === "human" ? "Your move"
           : aiError !== null ? "AI stopped" : aiPaused ? "AI paused" : "Thinking..."
         : state.passed === player ? "No moves - passed" : "Up next";
-    getElement(`#player-${player}-controller`, HTMLSpanElement).textContent = PLAYER_TYPE_LABELS[playerTypes[player]];
+    const controller = getElement(`#player-${player}-controller`, HTMLSpanElement);
+    controller.textContent = controllerLabel(player);
+    controller.title = playerTypes[player] === "human" ? "Human player"
+      : `${skillLabel(playerSkills[player])}: ${skillDescription(playerSkills[player])}`;
   }
   getElement("#fern-share", HTMLElement).style.width = `${count[1] / (count[1] + count[2]) * 100}%`;
   getElement("#coral-share", HTMLElement).style.width = `${count[2] / (count[1] + count[2]) * 100}%`;
@@ -898,7 +939,7 @@ function render(animate = false): void {
     ? "Good game. A rematch is only a click away."
     : playerTypes[state.turn] !== "human"
       ? aiError !== null ? "AI stopped. Retry, undo, or start a new game."
-        : aiPaused ? "AI is paused. Resume when you're ready." : `${PLAYER_TYPE_LABELS[playerTypes[state.turn]]} is choosing a move.`
+        : aiPaused ? "AI is paused. Resume when you're ready." : `${controllerLabel(state.turn)} is choosing a move.`
     : selected === null ? `Pick a ${playerNames[state.turn]} piece to see your possibilities.`
       : destinations.length ? "Filled dots clone. Outlined dots jump. Your move."
         : "This piece is blocked. Try another of your pieces.";

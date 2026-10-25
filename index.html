@@ -96,7 +96,7 @@
                   <tbody id="ai-thinking-candidates"></tbody>
                 </table>
               </div>
-              <p class="thinking-note">Higher scores favor this AI. Scores estimate piece advantage, not win probability. “≤” is an upper bound from search pruning. Easy AI picks randomly and does not score moves.</p>
+              <p class="thinking-note">Higher scores favor this AI. Scores estimate piece advantage, not win probability. “≤” is an upper bound from search pruning. Level 1 picks randomly without scoring. At other levels, the selected move may differ from the best evaluated move to match its skill setting.</p>
             </section>
           </section>
 
@@ -126,10 +126,13 @@
             <label class="player-name-label" for="player-1-type">Player type</label>
             <select class="player-type-input" id="player-1-type" name="player-type-1">
               <option value="human">Human</option>
-              <option value="easy">Easy AI</option>
-              <option value="medium">Medium AI</option>
-              <option value="hard">Hard AI</option>
+              <option value="ai">AI</option>
             </select>
+            <div class="skill-control" id="player-1-skill-control" hidden>
+              <label class="skill-heading" for="player-1-strength">AI strength <output id="player-1-strength-label" for="player-1-strength">Level 6 · Intermediate</output></label>
+              <input id="player-1-strength" type="range" min="1" max="10" step="1" value="6" disabled aria-describedby="player-1-strength-description">
+              <p id="player-1-strength-description">Considers your reply.</p>
+            </div>
             <label class="player-name-label" for="player-1-name">Your name</label>
             <input class="player-name-input" id="player-1-name" name="player-name-1" type="text" value="Player 1" maxlength="24" required autocomplete="off" spellcheck="false" aria-describedby="piece-name-help">
             <div class="piece-options" id="piece-options-1"></div>
@@ -139,17 +142,20 @@
             <label class="player-name-label" for="player-2-type">Player type</label>
             <select class="player-type-input" id="player-2-type" name="player-type-2">
               <option value="human">Human</option>
-              <option value="easy">Easy AI</option>
-              <option value="medium">Medium AI</option>
-              <option value="hard">Hard AI</option>
+              <option value="ai">AI</option>
             </select>
+            <div class="skill-control" id="player-2-skill-control" hidden>
+              <label class="skill-heading" for="player-2-strength">AI strength <output id="player-2-strength-label" for="player-2-strength">Level 6 · Intermediate</output></label>
+              <input id="player-2-strength" type="range" min="1" max="10" step="1" value="6" disabled aria-describedby="player-2-strength-description">
+              <p id="player-2-strength-description">Considers your reply.</p>
+            </div>
             <label class="player-name-label" for="player-2-name">Your name</label>
             <input class="player-name-input" id="player-2-name" name="player-name-2" type="text" value="Player 2" maxlength="24" required autocomplete="off" spellcheck="false" aria-describedby="piece-name-help">
             <div class="piece-options" id="piece-options-2"></div>
           </fieldset>
         </div>
         <p class="name-help" id="piece-name-help">We'll suggest a name for your animal. Edit it to make it yours, and it will stay yours even if you switch animals.</p>
-        <p class="name-help">Easy explores with random moves. Medium grabs territory. Hard looks ahead. Set either or both players to AI.</p>
+        <p class="name-help">Set either or both players to AI, then choose their strength from 1–10. Level 4 matches the old Medium; levels 5–7 bridge the gap; level 10 matches the old Hard. These are skill levels, not Elo ratings.</p>
         <p class="piece-picker-status" id="piece-picker-status" role="status" aria-live="polite">Choose one farm friend for each player.</p>
         <button class="primary-button start-game-button" id="start-game" disabled>Let's play</button>
       </form>
@@ -157,7 +163,7 @@
     <dialog id="rules-dialog" aria-labelledby="rules-title">
       <div class="dialog-eyebrow">WELCOME TO FARM FRENZY</div>
       <h2 id="rules-title">Room for two.<br>Territory for one.</h2>
-      <p>Play against a friend on the same device, challenge an AI, or watch two AIs play. Set each player to Human, Easy AI, Medium AI, or Hard AI, choose different farm friends, and set your names before each match. <span id="rules-first-player">Player 1</span> starts. New game and Play again return to player choice, with your current settings filled in so you can keep or change them.</p>
+      <p>Play against a friend on the same device, challenge an AI, or watch two AIs play. Set each player to Human or AI, choose an AI strength from 1–10, pick different farm friends, and set your names before each match. Levels 5–7 add an intermediate challenge between immediate gains and deeper planning. <span id="rules-first-player">Player 1</span> starts. New game and Play again return to player choice, with your current settings filled in so you can keep or change them.</p>
       <ol><li><strong>Clone:</strong> move one square horizontally, vertically, or diagonally. Your original stays put.</li><li><strong>Jump:</strong> move to any square exactly two spaces away. Your original square empties; you can jump over pieces.</li><li><strong>Flip:</strong> all opposing pieces touching your destination become yours, including diagonally.</li></ol>
       <p>If you have no legal move, your turn passes automatically. The game ends when the board is full, a player has no pieces, or neither player can move. Most pieces wins; equal scores are a draw.</p>
       <p>When the remaining empty territory is safely settled, the game offers to autoplay it. Choose Yes to finish in paced waves: each wave makes the maximum number of safe clones, with at most one clone per existing piece and one new piece per destination. New pieces can clone in the next wave. Choose No to keep normal play without further prompts that match. If a player has already been eliminated, No ends the game at the current score. Contested territory, including possible jumps, keeps normal play. Undo returns to the decision before an accepted autoplay finish.</p>

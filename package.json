@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Farm Frenzy: a territory game for humans and three levels of AI, inspired by Ataxx.",
+  "description": "Farm Frenzy: a territory game for humans and ten levels of AI, inspired by Ataxx.",
   "scripts": {
     "build": "tsc && node dist/build.js",
     "start": "npm run build && node dist/server.js",

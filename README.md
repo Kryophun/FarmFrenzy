@@ -23,9 +23,18 @@ For static hosting, run `npm run build` and publish only `dist/index.html`, `dis
 
 Before each match, each player chooses a farm friend from Cow, Pig, Chicken, Sheep, Horse, and Duck. Players must choose different pieces. Each animal suggests a name (for example, Sheep becomes BaaBaa). The name follows animal changes until the player edits it; after any manual edit, later animal changes never overwrite it, even if the name is changed back to a suggested default. Names are required, limited to 24 characters, and cannot be only spaces.
 
-Set each player independently to **Human**, **Easy AI** (random legal moves), **Medium AI** (best immediate territory gain), or **Hard AI** (looks ahead using a bounded, up-to-three-ply search). Both players default to Human. AI runs entirely on your device in a Web Worker so the board and controls remain responsive.
+Set each player independently to **Human** or **AI**, then use that player's **AI strength** slider from **1–10**. Both players default to Human; AI strength starts at level 6 and is remembered when switching types or returning to setup. AI runs entirely on your device in a Web Worker so the board and controls remain responsive.
 
-New game and Play again return to the player-choice screen. Current pieces, names, and player types are prefilled so you can keep or change them before starting the next match. Refreshing or closing the page resets the choices; they are not saved across visits. Player 1 starts. On human turns, select one of your pieces, then a highlighted empty square:
+| Strength | Style |
+| --- | --- |
+| 1–2 · Beginner | Level 1 picks random legal moves (the old Easy); level 2 favors immediate gains but often chooses weaker alternatives. |
+| 3–4 · Casual | Increasingly reliable immediate gains; level 4 is the old Medium. |
+| 5–7 · Intermediate | Looks up to two individual moves ahead, considering the opponent's reply, with increasing search budgets and fewer deliberate inaccuracies. |
+| 8–10 · Advanced | Looks up to three individual moves ahead, with more search and fewer inaccuracies. Level 10 retains the old Hard's 6,000-position lookahead budget and best-move policy. |
+
+Lower strengths choose among exactly evaluated, near-best alternatives with controlled probability and a bounded score loss. Pruned upper bounds are never used to justify an inaccurate move. If a search cannot finish its target depth, it uses the last fully completed depth; an intermediate level falling back to immediate evaluation does not add extra inaccuracies. These are relative skill settings, not calibrated Elo ratings, and a higher level is not guaranteed to win every game.
+
+New game and Play again return to the player-choice screen. Current pieces, names, player types, and AI strengths are prefilled so you can keep or change them before starting the next match. Refreshing or closing the page resets the choices; they are not saved across visits. Player 1 starts. On human turns, select one of your pieces, then a highlighted empty square:
 
 - **Clone:** move one square in any direction, leaving the original piece in place.
 - **Jump:** move exactly two squares away (including diagonals and off-axis destinations), emptying the original square.
@@ -47,7 +56,7 @@ Once accepted, each paced wave makes the maximum possible set of legal, non-capt
 
 Autoplay waves do not create separate undo entries: undo removes the triggering move and the entire accepted finish, and any later autoplay needs a fresh Yes. Rules and new-game controls safely interrupt accepted autoplay; returning to play resumes its remaining waves without asking again. An already-paused AI remains paused for normal turns until Resume AI is chosen, but an elimination can still offer optional autoplay.
 
-Enable **Show AI thinking** during a match to open the move explorer. It shows actual candidate moves, their evaluations, the current candidate, best move, search depth, and visited positions. Worker updates are throttled, and the final analysis stays visible during the following human turn. Easy AI lists legal choices without invented scores. Medium and Hard display estimated piece advantage from the current AI's perspective; higher is better, and `≤` marks a search upper bound rather than an exact score. Hard's final report uses its last fully completed search depth. Undo and new games clear stale analysis.
+Enable **Show AI thinking** during a match to open the move explorer. It shows the actual strength level, candidate moves, their evaluations, the current candidate, best evaluated move, selected move, search depth, and visited positions. Worker updates are throttled, and the final analysis stays visible during the following human turn. Level 1 lists legal choices without invented scores. Other levels display estimated piece advantage from the current AI's perspective; higher is better, and `≤` marks a search upper bound rather than an exact score. A skill-adjusted choice is shown separately from the best evaluated move. The final report uses the last fully completed search depth. Undo and new games clear stale analysis.
 
 Use a mouse or touchscreen, or Tab into the board and navigate with arrow keys. Enter/Space selects a piece or destination; Escape clears the selection. Home/End moves to the first/last square of the row.
 
@@ -63,7 +72,7 @@ npm run build
 npm run check
 ```
 
-`game.ts` is the typed, pure game engine, `ai.ts` contains the three AI strategies, `ai-worker.ts` runs AI off the UI thread, `auto-fill.ts` detects settled territory and plans safe fill waves, `sound.ts` synthesizes and controls capture audio, `app.ts` handles browser interaction, and `server.ts` serves only the public application files. The corresponding `*.test.ts` files cover game rules, AI strategies, automatic fill, and sound synthesis; `build.ts` copies static assets after compilation. Generated JavaScript lives in the ignored `dist` directory. There are no runtime package dependencies.
+`game.ts` is the typed, pure game engine, `ai.ts` contains the ten AI strength profiles and shared search, `ai-worker.ts` runs AI off the UI thread, `auto-fill.ts` detects settled territory and plans safe fill waves, `sound.ts` synthesizes and controls capture audio, `app.ts` handles browser interaction, and `server.ts` serves only the public application files. The corresponding `*.test.ts` files cover game rules, AI strategies, automatic fill, and sound synthesis; `build.ts` copies static assets after compilation. Generated JavaScript lives in the ignored `dist` directory. There are no runtime package dependencies.
 
 `eslint.config.ts` enables ESLint's recommended rules plus typescript-eslint's strict and stylistic type-checked presets for all TypeScript, including tests and tooling. Additional rules require explicit return types, safe boolean conditions, strict equality, braces, type-only imports, and exhaustive switches. Unsafe types, unhandled promises, unused code, and unused lint-disable directives fail linting; warnings also fail. Run `npm run lint:fix` for automatic fixes. `npm run check` runs lint, type checking, and the compiled game tests.
 
