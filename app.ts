@@ -62,6 +62,8 @@ let thinkingPlayer: Player | null = null;
 let latestAiProgress: AiProgress | null = null;
 let activeMoveAnimation: AnimatedMove | null = null;
 let activeAutoFill: AutoFillSequence | null = null;
+let autoFillConsent: "ask" | "approved" | "declined" = "ask";
+let pendingAutoFill: { state: GameState; waves: AutoFillWave[] } | null = null;
 let resultPresented = false;
 let matchStarted = false;
 let state = createGame();
@@ -73,6 +75,7 @@ const announcement = getElement("#announcement", HTMLParagraphElement);
 const rulesDialog = getElement("#rules-dialog", HTMLDialogElement);
 const resetDialog = getElement("#reset-dialog", HTMLDialogElement);
 const pieceDialog = getElement("#piece-dialog", HTMLDialogElement);
+const autoFillDialog = getElement("#auto-fill-dialog", HTMLDialogElement);
 const startGameButton = getElement("#start-game", HTMLButtonElement);
 const soundSelector = getElement("#sound-mode", HTMLSelectElement);
 const soundStatus = getElement("#sound-status", HTMLParagraphElement);
@@ -209,7 +212,8 @@ for (let index = 0; index < SIZE * SIZE; index++) {
 }
 
 function selectCell(index: number): void {
-  if (!matchStarted || state.over || activeMoveAnimation !== null || activeAutoFill !== null || playerTypes[state.turn] !== "human") {
+  if (!matchStarted || state.over || activeMoveAnimation !== null || activeAutoFill !== null
+    || pendingAutoFill !== null || playerTypes[state.turn] !== "human") {
     return;
   }
   if (state.board[index] === state.turn) {
@@ -440,17 +444,38 @@ function playCaptureSound(): void {
 
 function continueGame(): void {
   cancelAi();
-  if (!matchStarted || activeMoveAnimation !== null || activeAutoFill !== null || (aiPaused && !state.over) || aiError !== null
-    || pieceDialog.open || rulesDialog.open || resetDialog.open) {
+  if (!matchStarted || activeMoveAnimation !== null || activeAutoFill !== null || pendingAutoFill !== null
+    || (aiPaused && !state.over) || aiError !== null
+    || pieceDialog.open || rulesDialog.open || resetDialog.open || autoFillDialog.open) {
     return;
   }
-  const waves = getAutoFillPlan(state);
+  const waves = autoFillConsent === "declined" ? null : getAutoFillPlan(state);
   if (waves === null) {
     if (state.over) {
       presentGameResult();
     }
     scheduleAi();
     return;
+  }
+  if (autoFillConsent === "approved") {
+    startAutoFillSequence(waves);
+    return;
+  }
+  pendingAutoFill = { state, waves };
+  selected = null;
+  const outcome = state.over && state.winner !== 0 ? `${playerNames[state.winner]} has won. ` : "";
+  getElement("#auto-fill-description", HTMLParagraphElement).textContent =
+    `${outcome}All remaining moves are straightforward. Autoplay the remaining moves?`;
+  getElement("#decline-auto-fill", HTMLButtonElement).textContent = state.over ? "No, finish here" : "No, keep playing";
+  autoFillDialog.returnValue = "";
+  render();
+  autoFillDialog.showModal();
+  announcement.textContent = "Autoplay is available. Choose Yes to finish the remaining moves, or No to skip it.";
+}
+
+function startAutoFillSequence(waves: AutoFillWave[]): void {
+  if (autoFillConsent !== "approved") {
+    throw new Error("Autoplay requires the player's confirmation.");
   }
   const sequence: AutoFillSequence = {
     waves, index: 0, previousBoard: null, destinations: new Set(), ghosts: [], splits: [], timer: null,
@@ -544,6 +569,7 @@ function finishAutoFillWave(sequence: AutoFillSequence): void {
   sequence.index++;
   if (sequence.index === sequence.waves.length) {
     activeAutoFill = null;
+    autoFillConsent = "ask";
     render(true);
     if (!state.over || state.board.includes(0)) {
       throw new Error("Automatic fill finished without completing the board.");
@@ -561,8 +587,16 @@ function finishAutoFillWave(sequence: AutoFillSequence): void {
 }
 
 function cancelAutoFill(): void {
+  const hadOffer = pendingAutoFill !== null;
+  pendingAutoFill = null;
+  if (autoFillDialog.open) {
+    autoFillDialog.close();
+  }
   const sequence = activeAutoFill;
   if (sequence === null) {
+    if (hadOffer) {
+      render();
+    }
     return;
   }
   activeAutoFill = null;
@@ -593,8 +627,9 @@ function showAiError(message: string): void {
 function scheduleAi(): void {
   cancelAi();
   const difficulty = playerTypes[state.turn];
-  if (!matchStarted || state.over || activeMoveAnimation !== null || activeAutoFill !== null || difficulty === "human" || aiPaused || aiError !== null
-    || pieceDialog.open || rulesDialog.open || resetDialog.open) {
+  if (!matchStarted || state.over || activeMoveAnimation !== null || activeAutoFill !== null || pendingAutoFill !== null
+    || difficulty === "human" || aiPaused || aiError !== null
+    || pieceDialog.open || rulesDialog.open || resetDialog.open || autoFillDialog.open) {
     return;
   }
   board.setAttribute("aria-busy", "true");
@@ -718,8 +753,8 @@ function renderAiThinking(): void {
 
 function renderGameResult(): void {
   const result = getElement("#game-result", HTMLElement);
-  if (!matchStarted || !state.over || state.board.includes(0)
-    || activeMoveAnimation !== null || activeAutoFill !== null) {
+  if (!matchStarted || !state.over || (state.board.includes(0) && autoFillConsent !== "declined")
+    || activeMoveAnimation !== null || activeAutoFill !== null || pendingAutoFill !== null) {
     result.hidden = true;
     resultPresented = false;
     return;
@@ -783,7 +818,8 @@ function render(animate = false): void {
     }
     cell.tabIndex = index === focused ? 0 : -1;
     cell.setAttribute("aria-pressed", String(selected === index));
-    cell.setAttribute("aria-disabled", String(!matchStarted || state.over || activeMoveAnimation !== null || activeAutoFill !== null || playerTypes[state.turn] !== "human"));
+    cell.setAttribute("aria-disabled", String(!matchStarted || state.over || activeMoveAnimation !== null
+      || activeAutoFill !== null || pendingAutoFill !== null || playerTypes[state.turn] !== "human"));
     const owner = piece ? `${playerNames[piece]}${playerPieces[piece] !== null ? ` (${playerPieces[piece].name})` : ""}` : "empty";
     cell.setAttribute("aria-label", `${coordinate(index)}, ${owner}${destinationType ? `, ${destinationType} available` : ""}`);
   });
@@ -803,7 +839,8 @@ function render(animate = false): void {
     getElement(`#player-${player}`, HTMLElement).classList.toggle("active", activeAutoFill !== null
       ? activeAutoFill.waves[activeAutoFill.index].some(clone => clone.player === player)
       : !state.over && state.turn === player);
-    getElement(`#player-${player}-status`, HTMLElement).textContent = activeAutoFill !== null
+    getElement(`#player-${player}-status`, HTMLElement).textContent = pendingAutoFill !== null ? "Awaiting your choice"
+      : activeAutoFill !== null
       ? count[player] === 0 ? "No pieces left" : "Finishing territory..."
       : activeMoveAnimation !== null
       ? activeMoveAnimation.move.player === player
@@ -824,7 +861,8 @@ function render(animate = false): void {
     : activeMoveAnimation !== null ? activeMoveAnimation.move.player === 2
     : state.over ? state.winner === 2 : state.turn === 2);
   turnLabel.replaceChildren(document.createElement("span"), document.createTextNode(
-    activeAutoFill !== null ? "Filling settled territory..."
+    pendingAutoFill !== null ? "Autoplay available"
+    : activeAutoFill !== null ? "Filling settled territory..."
     : activeMoveAnimation !== null
       ? `${playerNames[activeMoveAnimation.move.player]} is ${activeMoveAnimation.phase === "tussle" ? "tussling"
         : activeMoveAnimation.move.type === "clone" ? "cloning" : "jumping"}...`
@@ -850,7 +888,9 @@ function render(animate = false): void {
     ? "Two humans. One board. A friendly rivalry."
     : humanCount === 1 ? "One human. One AI. A friendly rivalry." : "Two AIs. One board. Watch them grow.";
   getElement("#rules-first-player", HTMLSpanElement).textContent = playerNames[1];
-  getElement("#selection-hint", HTMLElement).textContent = activeAutoFill !== null
+  getElement("#selection-hint", HTMLElement).textContent = pendingAutoFill !== null
+    ? "Choose whether to autoplay the remaining straightforward moves."
+    : activeAutoFill !== null
     ? "Cloning as many legal moves as possible, once per source piece."
     : activeMoveAnimation !== null
     ? activeMoveAnimation.phase === "tussle" ? "A friendly tussle in the dust." : "A little takeover in motion."
@@ -890,6 +930,9 @@ getElement("#undo", HTMLButtonElement).addEventListener("click", () => {
   cancelAi();
   cancelMoveAnimation();
   cancelAutoFill();
+  if (autoFillConsent === "approved") {
+    autoFillConsent = "ask";
+  }
   if (players.filter(player => playerTypes[player] === "human").length === 1) {
     while (playerTypes[previous.turn] !== "human" && history.length > 0) {
       const earlier = history.pop();
@@ -915,6 +958,7 @@ function openPlayerChoice(): void {
   cancelAi();
   cancelMoveAnimation();
   cancelAutoFill();
+  autoFillConsent = "ask";
   state = createGame();
   thinkingPlayer = null;
   latestAiProgress = null;
@@ -944,6 +988,27 @@ getElement("#confirm-reset", HTMLButtonElement).addEventListener("click", () => 
   resetDialog.close();
   openPlayerChoice();
 });
+autoFillDialog.addEventListener("close", () => {
+  const offer = pendingAutoFill;
+  pendingAutoFill = null;
+  if (offer === null) {
+    return;
+  }
+  if (state !== offer.state) {
+    throw new Error("The position changed while awaiting autoplay confirmation.");
+  }
+  if (autoFillDialog.returnValue === "yes") {
+    autoFillConsent = "approved";
+    startAutoFillSequence(offer.waves);
+  } else {
+    autoFillConsent = "declined";
+    render();
+    announcement.textContent = state.over
+      ? "Autoplay skipped. The game ends with the current score."
+      : "Autoplay skipped. Continue playing normally.";
+    continueGame();
+  }
+});
 document.querySelectorAll(".rules-trigger").forEach(button => {
   button.addEventListener("click", () => {
     cancelAi();
@@ -957,6 +1022,8 @@ for (const dialog of [rulesDialog, resetDialog]) {
     render();
     continueGame();
   });
+}
+for (const dialog of [rulesDialog, resetDialog, autoFillDialog]) {
   dialog.addEventListener("click", event => {
     if (event.target !== dialog) {
       return;

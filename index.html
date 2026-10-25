@@ -160,10 +160,19 @@
       <p>Play against a friend on the same device, challenge an AI, or watch two AIs play. Set each player to Human, Easy AI, Medium AI, or Hard AI, choose different farm friends, and set your names before each match. <span id="rules-first-player">Player 1</span> starts. New game and Play again return to player choice, with your current settings filled in so you can keep or change them.</p>
       <ol><li><strong>Clone:</strong> move one square horizontally, vertically, or diagonally. Your original stays put.</li><li><strong>Jump:</strong> move to any square exactly two spaces away. Your original square empties; you can jump over pieces.</li><li><strong>Flip:</strong> all opposing pieces touching your destination become yours, including diagonally.</li></ol>
       <p>If you have no legal move, your turn passes automatically. The game ends when the board is full, a player has no pieces, or neither player can move. Most pieces wins; equal scores are a draw.</p>
-      <p>When the remaining empty territory is safely settled, the game finishes it for you in paced waves. Each wave makes the maximum number of safe clones, with at most one clone per existing piece and one new piece per destination. New pieces can clone in the next wave. If one side loses all its pieces, the winner fills the remaining squares the same way. Contested territory, including possible jumps, keeps normal play. Undo returns to the decision before the automatic finish.</p>
+      <p>When the remaining empty territory is safely settled, the game offers to autoplay it. Choose Yes to finish in paced waves: each wave makes the maximum number of safe clones, with at most one clone per existing piece and one new piece per destination. New pieces can clone in the next wave. Choose No to keep normal play without further prompts that match. If a player has already been eliminated, No ends the game at the current score. Contested territory, including possible jumps, keeps normal play. Undo returns to the decision before an accepted autoplay finish.</p>
       <p>AI moves happen automatically. Pause AI to stop and study the board. Against one AI, Undo returns to your previous decision, including any AI replies. Undoing to an AI turn pauses it until you choose Resume AI. Opening a dialog temporarily pauses AI turns.</p>
       <p class="keyboard-note">Keyboard: Tab to the board, arrow keys to explore, Enter or Space to select and move. Escape clears your selection.</p>
       <form method="dialog"><button class="primary-button">Let's play</button></form>
+    </dialog>
+    <dialog id="auto-fill-dialog" aria-labelledby="auto-fill-title" aria-describedby="auto-fill-description">
+      <div class="dialog-eyebrow">A STRAIGHTFORWARD FINISH</div>
+      <h2 id="auto-fill-title">Autoplay remaining moves?</h2>
+      <p id="auto-fill-description">All remaining moves are straightforward. Autoplay the remaining moves?</p>
+      <form method="dialog" class="dialog-actions">
+        <button class="secondary-button" id="decline-auto-fill" value="no" autofocus>No, keep playing</button>
+        <button class="primary-button" id="accept-auto-fill" value="yes">Yes, autoplay</button>
+      </form>
     </dialog>
     <dialog id="reset-dialog" aria-labelledby="reset-title">
       <div class="dialog-eyebrow">A CLEAN SLATE</div>
